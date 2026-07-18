@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-# hmdm-stats: inject an "Analytics" nav tab (iframe to Grafana) into the
-# DEPLOYED Headwind MDM web panel. No source rebuild — this patches the static
-# files Tomcat serves. Idempotent (marker comments), takes one-time backups,
-# and NEVER hard-fails: if the markup can't be found it prints the manual steps
-# and exits 0 so the rest of the install continues.
+# hmdm-stats: FALLBACK ONLY. The Analytics tab is now a native, source-level
+# addition to the panel (see server/src/main/webapp/app/app.js,
+# tabs.controller.js, content.html, analytics.controller.js/.html in this
+# repo) — if you build and deploy the WAR from this repo, the tab is already
+# there and this script has nothing to do.
 #
-# Re-run after every Headwind upgrade (upgrades replace the webapp files).
+# This script exists only for deployments that install a PRE-BUILT WAR they
+# do not rebuild from this source (e.g. an existing install that only wants
+# the Postgres/Grafana pipeline). It patches the DEPLOYED static files at
+# runtime by pattern-matching markup: an AngularJS `ngRoute`-style
+# `<li><a href="#/applications">` nav link. That pattern was written before
+# this repo's actual panel source was available and does NOT match it — the
+# real panel uses ui-router plus a Bootstrap <tabset> (see content.html), not
+# plain nav links. Against an unmodified stock CE WAR this script will
+# therefore find nothing and no-op with a warning (see giveup() below) — it
+# will not corrupt anything, it just won't add a tab. Rebuilding from this
+# repo's source is the only path that reliably gets you the tab.
 #
 # Env/args:
 #   WEBAPP_DIR   explicit path to the deployed webapp (dir with index.html)
@@ -24,6 +34,13 @@ giveup() {
     exit 0
 }
 
+# --- 0. already native? (WAR built from this repo already has the tab) ------
+if [ -n "$WEBAPP_DIR" ] && [ -f "$WEBAPP_DIR/app/components/main/controller/analytics.controller.js" ]; then
+    echo "OK: native Analytics tab already present (this WAR was built from"
+    echo "    this repo's source) — nothing to inject."
+    exit 0
+fi
+
 # --- 1. locate the deployed webapp -------------------------------------------
 if [ -z "$WEBAPP_DIR" ]; then
     for d in /var/lib/tomcat*/webapps/* /opt/tomcat*/webapps/* /usr/share/tomcat*/webapps/*; do
@@ -36,6 +53,12 @@ if [ -z "$WEBAPP_DIR" ]; then
     done
 fi
 [ -n "$WEBAPP_DIR" ] && [ -d "$WEBAPP_DIR" ] || giveup "could not locate the deployed Headwind webapp (set WEBAPP_DIR in .env)"
+
+if [ -f "$WEBAPP_DIR/app/components/main/controller/analytics.controller.js" ]; then
+    echo "OK: native Analytics tab already present in $WEBAPP_DIR (this WAR"
+    echo "    was built from this repo's source) — nothing to inject."
+    exit 0
+fi
 INDEX="$WEBAPP_DIR/index.html"
 [ -f "$INDEX" ] || giveup "no index.html in $WEBAPP_DIR"
 echo "webapp: $WEBAPP_DIR"

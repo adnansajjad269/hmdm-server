@@ -1,160 +1,56 @@
-# hmdm-stats — Device Status History & Dashboard for Headwind MDM CE
+# Headwind MDM - a platform for corporate Android applications
 
-Headwind MDM CE keeps no history: the `devices` table is overwritten on every
-device sync. This bundle adds a small, independent pipeline alongside a
-self-hosted Headwind CE server that:
+Headwind MDM is a Mobile Device Management platform for Android devices, designed for corporate app developers and IT managers.
 
-- samples **battery level, charging state, and online/offline** for every
-  device on a cron schedule (default every 10 min),
-- keeps **30 days** of history in a `device_status_history` table in the same
-  Postgres instance (read-only with respect to Headwind's own tables),
-- serves a provisioned **Grafana dashboard** (LAN-only) with fleet stat tiles,
-  a needs-attention table, a battery-over-time chart colored **green while
-  online / red while offline**, and an online/offline state timeline,
-- provisions **alert rules**: device offline > 1 h, battery below the warn
-  (20 %) and critical (5 %) tiers (aligned with FreeKiosk's battery-protection
-  latch), and a pipeline-staleness backstop — routed to email and/or a webhook,
-- optionally injects an **"Analytics" tab** into the deployed Headwind web
-  panel (between Devices and Applications) that iframes the dashboard.
+(c) 2020 h-mdm.com
 
-Nothing in Headwind MDM's source or schema is modified. Scales comfortably to
-~200 devices (~864k rows / 30 days — a plain indexed table).
+[https://h-mdm.com](https://h-mdm.com)
 
-```
-devices (Headwind, overwritten each sync)
-   │  read-only SELECT every N min (cron -> snapshot.py)
-   ▼
-device_status_history (30-day rolling window)
-   │  read-only role grafana_ro
-   ▼
-Grafana :3000 (LAN only) ── alert rules ──> email / webhook
-   ▲
-   └── <iframe> in the injected "Analytics" tab of the Headwind panel
-```
+## Features
 
-## Requirements
+ - Enrollment to Android 7+ devices through scanning a QR-code
+ - Work in "Application mode" without enrollment
+ - Customize the mobile desktop design and available applications
+ - Automatic deployment of applications through the web panel
+ - Mobile device management: groups, configurations, device status
+ - Setup the available mobile device capabilities (GPS, Wi-Fi, Bluetooth etc.)
+ - Manage the automatic OS update mode on the mobile device
+ - Extensible platform design allowing the custom plugin development
+ - Collection of application logs in the web panel
+ - Centralized configuration of corporate applications
 
-- Ubuntu VM running Headwind MDM CE (tested target: CE 5.39) with local
-  Postgres, database `hmdm`, accessible via `sudo -u postgres psql`
-- root/sudo, outbound HTTPS to `apt.grafana.com` (Grafana install)
-- Devices running the Headwind launcher (its device-info push is every 15 min;
-  the launcher payload provides `batteryLevel` 0–100 and `batteryCharging`)
+The *Enterprise edition* of the platform has more features:
 
-## Install
+ - Restriction of mobile user functions ("kid's shell" for corporate users)
+ - Disable to change the mobile device settings
+ - Kiosk mode (COSU, single-task mode)
+ - Sending images from mobile device to server
+ - Cloud-based or self-hosted server setup
+ - Premium support of enterprise users
+ - Custom plugin development services
 
-```bash
-sudo git clone <this repo> /opt/hmdm-stats
-cd /opt/hmdm-stats
-cp .env.example .env && $EDITOR .env    # alert routing, SMTP, bind address
-sudo ./install.sh
-```
+The enterprise edition may be ordered on the [project website](https://h-mdm.com).
 
-`install.sh` is idempotent — re-run it after changing `.env`. Useful flags:
-`--dry-run` (preflight only, no changes), `--skip-grafana-install` (Grafana
-already present), `--skip-webpanel` (don't touch the Headwind panel).
+## Quick start
 
-The installer's **preflight** verifies the live schema first (column names,
-`info` text vs jsonb, `lastupdate` epoch-millis vs seconds, JSON keys in real
-payloads) and refuses to install on any mismatch, telling you exactly what it
-found. The detected mapping lands in `/etc/hmdm-stats/hmdm-stats.conf` — the
-single runtime config for the snapshot job.
+Headwind MDM control panel is cross-platform (it is written in Java and uses Tomcat web server). However the best OS for the deployment of Headwind MDM control panel is Ubuntu Linux. 
 
-## What "online" means
+ - Clone the project and build it (see BUILD.txt for details)
+ - Install the web panel to the server by using the installer script
+ - Open the web panel and follow the hints to generate a QR code
+ - Perform the factory reset on your Android device, tap 7 times on the welcome screen
+ - Follow the instructions to scan a QR code and enroll the mobile agent
+ 
+## Contributing
 
-`online = now() − devices.lastupdate < ONLINE_THRESHOLD_SECONDS` (default
-1800 s = 2× the launcher's fixed 15-minute device-info interval). A device that
-never synced counts as offline.
+Headwind MDM is a platform making corporate app development easier. We are happy to get more powerful plugins related to mobile device management. 
 
-## Dashboard
+Please contact us on the [project website](https://h-mdm.com) if you'd like to:
 
-`http://10.10.10.12:3000/d/hmdm-fleet` — anonymous Viewer access on the LAN.
+ - develop a public plugin for Headwind MDM
+ - suggest a feature
+ - order the custom development
+ - report a bug
 
-- **Stat tiles**: online now, offline now, battery below a pickable threshold,
-  offline longer than a pickable duration.
-- **Needs attention** table: all devices, lowest battery / longest offline
-  first — the operational view at 200 devices.
-- **Battery over time**: scoped by the multi-select *Device* picker (defaults
-  to one device — don't select All with a big fleet). Each device renders as a
-  green line while online and red while offline. A one-sample gap at each
-  transition is expected (two series per device under the hood).
-- **Online/offline timeline**: banded state view, same device picker.
-- Default range: last 30 days; zoom freely.
 
-Panels are provisioned read-only from
-`grafana/provisioning/dashboards/json/fleet-dashboard.json`; edit that file
-(and re-run install.sh) rather than the UI — UI edits are not persisted.
 
-## Alerting
-
-| Rule | Fires when | Severity |
-|---|---|---|
-| Device offline too long | offline > `OFFLINE_ALERT_SECONDS` (1 h) | warning |
-| Battery low (warn tier) | battery < `BATTERY_WARN` (20 %), online, not charging | warning |
-| Battery critical (freeze tier) | battery < `BATTERY_CRIT` (5 %), online, not charging | critical |
-| Snapshot pipeline stale | no new samples for 30 min | critical |
-
-Routing: set `ALERT_EMAIL_TO` (plus `SMTP_*`) and/or `ALERT_WEBHOOK_URL` in
-`.env` — the installer provisions a single contact point with whichever
-integrations are configured. Neither set → rules still evaluate but go to
-Grafana's default empty receiver (a warning is printed).
-
-## Security notes
-
-- Grafana binds to the **LAN address only** and anonymous access is
-  Viewer-only, needed for the iframe tab. **Never** add a pfSense port-forward
-  for :3000. For off-LAN access, use a VPN (WireGuard/OpenVPN) into the LAN.
-- `grafana_ro` can read only `device_status_history`; `hmdm_stats` can read
-  `devices` and write only the history table. Headwind's tables are otherwise
-  untouched.
-- Secrets live in `.env` (0600, gitignored) and
-  `/etc/hmdm-stats/hmdm-stats.conf` (0600).
-
-## The Analytics tab
-
-`webpanel/inject-analytics-tab.sh` patches the *deployed* panel files under
-Tomcat (auto-detected; override with `WEBAPP_DIR` in `.env`): it adds a script
-registering an AngularJS `/analytics` route and inserts a nav item before
-Applications. Marker comments make re-runs idempotent; pristine backups are
-kept as `*.hmdm-stats.orig`. If detection fails it prints
-`webpanel/analytics-manual-steps.md` and exits cleanly.
-
-**A Headwind upgrade replaces the webapp — re-run the injector afterwards.**
-
-## Changing the sample interval / retention
-
-Edit `SNAPSHOT_INTERVAL_MIN` / `RETENTION_DAYS` in `.env` and re-run
-`sudo ./install.sh`. The snapshot dedup bucket is derived from the interval,
-so don't edit `/etc/cron.d/hmdm-stats` directly.
-
-## Operations
-
-- Logs: `/var/log/hmdm-stats/snapshot.log` (rotated weekly); failures also go
-  to syslog (`logger -t hmdm-stats`). The *pipeline stale* Grafana alert is
-  the backstop if cron dies entirely.
-- Reboot-safe: cron lives in `/etc/cron.d`, Grafana is `systemctl enable`d.
-- Verify anytime: `sudo -u postgres psql -d hmdm -f /opt/hmdm-stats/sql/verify.sql`
-
-## Acceptance checklist
-
-1. `verify.sql` §1: row count grows and `staleness` < interval; re-check after
-   25 min — `newest_sample` advanced.
-2. §2: `dup_devices` = 0 on every bucket; run
-   `sudo /opt/hmdm-stats/snapshot/snapshot-cron.sh` twice back-to-back — the
-   second logs `inserted=0`.
-3. §3: after 30+ days, `history_span` stays ≈ 30 days (pruning works).
-4. §4/§5 match what the Headwind admin console shows at the same moment.
-5. Dashboard loads on the LAN at `http://10.10.10.12:3000/d/hmdm-fleet`
-   without login; values match §4.
-6. Pick a device that went offline — its battery trace is green then red.
-7. Grafana → Alerting → Alert rules: 4 rules in folder *HMDM Stats*; use
-   *Test* on the contact point; stop cron for 35 min → *Snapshot pipeline
-   stale* fires; re-enable.
-8. Reboot the VM: `/etc/cron.d/hmdm-stats` persists,
-   `systemctl is-enabled grafana-server` → `enabled`, a new sample appears
-   within the interval.
-9. Analytics tab shows between Devices and Applications; re-running the
-   injector doesn't duplicate it.
-
-## Uninstall
-
-See [UNINSTALL.md](UNINSTALL.md).

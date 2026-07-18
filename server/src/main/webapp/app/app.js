@@ -129,6 +129,18 @@ angular.module('headwind-kiosk',
                 }
 
             })
+            .state('analytics', {
+                url: '/analytics',
+                templateUrl: 'app/components/main/view/content.html',
+                controller: 'TabController',
+                ncyBreadcrumb: {
+                    label: '{{"breadcrumb.analytics" | localize}}' //label to show in breadcrumbs
+                },
+                resolve: {
+                    openTab: function () {return "ANALYTICS"}
+                }
+
+            })
             .state('applications', {
                 url: '/applications',
                 templateUrl: 'app/components/main/view/content.html',

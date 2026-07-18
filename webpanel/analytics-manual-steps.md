@@ -1,71 +1,54 @@
-# Adding the Analytics tab by hand
+# Adding the Analytics tab
 
-Use these steps when `inject-analytics-tab.sh` could not auto-detect the
-deployed web panel markup (it prints a WARN and points here). Every Headwind
-CE build differs slightly, so all paths below are examples — adapt them.
+## Read this first: you probably don't need this file
 
-## 1. Find the deployed webapp
+The Analytics tab is now a **native part of the panel source** in this repo:
 
-```bash
-ls /var/lib/tomcat*/webapps/
-# the Headwind panel is the webapp whose index.html contains ng-app="..."
-grep -l 'ng-app' /var/lib/tomcat*/webapps/*/index.html
-```
+- `server/src/main/webapp/app/app.js` (ui-router state `analytics`)
+- `server/src/main/webapp/app/components/main/controller/tabs.controller.js`
+  (`ANALYTICS` route entry)
+- `server/src/main/webapp/app/components/main/view/content.html` (the `<tab>`)
+- `server/src/main/webapp/app/components/main/controller/analytics.controller.js`
+  and `.../view/analytics.html` (the iframe + HTTPS fallback notice)
+- `server/src/main/webapp/localization/en_US.js` (tab/breadcrumb labels)
 
-Call that directory `$WEBAPP` below. If you find it this way, the simplest fix
-is to re-run the injector with the explicit path — only do the rest of this
-file if that also fails:
+**If you build the WAR from this repo** (`mvn package`, or your normal
+Headwind build), the tab is already there. Nothing to inject, nothing to run
+from this directory. `install.sh --skip-webpanel` is the right flag.
 
-```bash
-WEBAPP_DIR=$WEBAPP GRAFANA_URL=http://10.10.10.12:3000 \
-    /opt/hmdm-stats/webpanel/inject-analytics-tab.sh
-```
+The rest of this file is only for the case where you're deploying a
+**pre-built WAR you didn't compile from this repo** — e.g. an existing
+Headwind install where you only want the Postgres + Grafana pieces of
+hmdm-stats, not a rebuild. In that case `inject-analytics-tab.sh` tries to
+patch the already-deployed static files, but its detection logic was written
+*before* this repo's real panel source was available, targeting a generic
+guess (an AngularJS `ngRoute`-style `<li><a href="#/applications">` link).
+The actual CE panel uses **ui-router** with a Bootstrap `<tabset>`
+(`content.html`) — there is no such link to find. Against a stock,
+unmodified CE WAR the injector will not find a match and will cleanly no-op
+with a warning; it will not corrupt anything, it also won't add a tab.
 
-## 2. Install the route script
+So: on a pre-built WAR, there is currently no reliable automatic way to add
+the tab without rebuilding. Your options, in order of preference:
 
-```bash
-# render the placeholders by hand; NG_APP is the value of ng-app= in index.html
-sed -e 's|__NG_APP__|headwind-kiosk|g' \
-    -e 's|__GRAFANA_URL__|http://10.10.10.12:3000|g' \
-    /opt/hmdm-stats/webpanel/analytics-tab.js > $WEBAPP/hmdm-stats-analytics-tab.js
-```
+1. **Rebuild from this repo.** Even for an otherwise-unmodified stock
+   deployment, building the WAR from `server/` here gives you the native
+   tab with zero manual steps.
+2. **Patch the deployed WAR by hand**, following the pattern above: add
+   `analytics.controller.js` + `analytics.html` from
+   `server/src/main/webapp/app/components/main/...` into the deployed
+   webapp directory, register the script tag in `index.html`, add the
+   `analytics` state to the deployed `app.js`, the `ANALYTICS` entry to
+   `tabs.controller.js`, and the `<tab>` block to `content.html` — i.e. the
+   same five edits this repo makes, applied to the deployed copies instead
+   of the source. Diff this repo against your deployed webapp to find the
+   exact insertion points if the deployed version differs.
+3. Skip the panel tab; use Grafana directly at `http://10.10.10.12:3000`.
 
-Then edit `$WEBAPP/index.html` and add, just before `</body>`:
-
-```html
-<script src="hmdm-stats-analytics-tab.js"></script>
-```
-
-## 3. Add the nav item
-
-Find the template containing the main navigation (search for the Applications
-link):
-
-```bash
-grep -rl 'href="#/applications"' $WEBAPP --include='*.html'
-```
-
-In that file, immediately **before** the `<li>` element that contains the
-Applications link, add:
-
-```html
-<!-- hmdm-stats:analytics:begin --><li><a href="#/analytics">Analytics</a></li><!-- hmdm-stats:analytics:end -->
-```
-
-Keep the marker comments — they let the injector recognize and refresh the
-block on later runs. If the nav `<li>` elements carry CSS classes, copy the
-same classes onto the new `<li>` so it matches visually.
-
-## 4. Verify
+## Verify
 
 Hard-refresh the panel (Ctrl+Shift+R). An **Analytics** tab should appear
 between Devices and Applications and render the Grafana dashboard. If the
-iframe is blank, confirm Grafana has `allow_embedding = true` and anonymous
-Viewer access (both set by install.sh) and that the browser can reach
-`http://10.10.10.12:3000` directly.
-
-## Notes
-
-- Headwind upgrades replace the webapp — redo these steps (or re-run the
-  injector) after every upgrade.
-- Backups of every touched file are kept next to it as `*.hmdm-stats.orig`.
+tab shows a warning instead of the dashboard, the panel is being served over
+HTTPS and browsers block the plain-HTTP Grafana iframe (mixed content) — open
+`http://<server-host>:3000` directly instead, or put Grafana behind TLS too.

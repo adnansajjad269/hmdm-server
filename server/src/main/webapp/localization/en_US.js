@@ -767,6 +767,7 @@ document.localization ['en_US'] = {
     'tab.common.applications': 'Shared Applications',
 
     'tab.devices': 'Devices',
+    'tab.analytics': 'Analytics',
     'tab.applications': 'Applications',
     'tab.configurations': 'Configurations',
     'tab.files': 'Files',
@@ -934,6 +935,7 @@ document.localization ['en_US'] = {
 
     'breadcrumb.summary': 'Summary',
     'breadcrumb.devices': 'Devices',
+    'breadcrumb.analytics': 'Analytics',
     'breadcrumb.applications': 'Applications',
     'breadcrumb.configurations': 'Configurations',
     'breadcrumb.files': 'Files',
@@ -1110,6 +1112,8 @@ document.localization ['en_US'] = {
     'permission.edit_application_versions': 'Manage application versions',
     'permission.files': 'View files',
     'permission.edit_files': 'Manage files',
+
+    'analytics.https.warning': 'The Analytics dashboard is served over plain HTTP and cannot be embedded on this HTTPS page (browsers block mixed content). Open it directly instead: http://<server-host>:3000',
 
     'yes': 'yes',
     'no': 'no'
