@@ -1,0 +1,6 @@
+# hmdm-stats device status snapshot — installed by install.sh, do not edit by
+# hand: change SNAPSHOT_INTERVAL_MIN in /opt/hmdm-stats/.env and re-run install.sh
+# so the dedup bucket stays aligned with the schedule.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/__INTERVAL__ * * * * __CRON_USER__ /opt/hmdm-stats/snapshot/snapshot-cron.sh

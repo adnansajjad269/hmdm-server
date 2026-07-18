@@ -1,0 +1,386 @@
+{
+  "uid": "hmdm-fleet",
+  "title": "HMDM Fleet Status",
+  "tags": ["hmdm-stats"],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-30d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "device",
+        "label": "Device",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
+        "query": "SELECT DISTINCT device_number FROM device_status_history ORDER BY 1",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": null,
+        "current": {},
+        "sort": 1,
+        "description": "Devices shown in the time-series panels. Defaults to the first device; avoid selecting All with a large fleet."
+      },
+      {
+        "name": "offline_hours",
+        "label": "Offline longer than (h)",
+        "type": "custom",
+        "query": "1,2,4,8,24",
+        "current": { "text": "1", "value": "1", "selected": true },
+        "options": [
+          { "text": "1", "value": "1", "selected": true },
+          { "text": "2", "value": "2", "selected": false },
+          { "text": "4", "value": "4", "selected": false },
+          { "text": "8", "value": "8", "selected": false },
+          { "text": "24", "value": "24", "selected": false }
+        ],
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "low_batt",
+        "label": "Low battery below (%)",
+        "type": "custom",
+        "query": "5,10,15,20,30",
+        "current": { "text": "20", "value": "20", "selected": true },
+        "options": [
+          { "text": "5", "value": "5", "selected": false },
+          { "text": "10", "value": "10", "selected": false },
+          { "text": "15", "value": "15", "selected": false },
+          { "text": "20", "value": "20", "selected": true },
+          { "text": "30", "value": "30", "selected": false }
+        ],
+        "multi": false,
+        "includeAll": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Online now",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (device_number) online FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT count(*) FILTER (WHERE online) AS \"Online\" FROM latest"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "none"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Offline now",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (device_number) online FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT count(*) FILTER (WHERE NOT online) AS \"Offline\" FROM latest"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Battery below ${low_batt}%",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (device_number) battery_level FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT count(*) FILTER (WHERE battery_level < ${low_batt}) AS \"Low battery\" FROM latest"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Offline > ${offline_hours} h",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (device_number) online, last_update FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT count(*) FILTER (WHERE NOT online AND COALESCE(last_update, timestamptz 'epoch') < now() - (${offline_hours} * interval '1 hour')) AS \"Long offline\" FROM latest"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Needs attention — lowest battery / longest offline first",
+      "description": "Latest snapshot per device. Sorted by lowest battery, then longest offline.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (device_number) device_number, battery_level, charging, online, last_update FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT device_number AS \"Device\", battery_level AS \"Battery %\", COALESCE(charging, 'no') AS \"Charging\", CASE WHEN online THEN 'Online' ELSE 'Offline' END AS \"Status\", CASE WHEN online THEN 0 ELSE round(extract(epoch FROM (now() - COALESCE(last_update, timestamptz 'epoch'))) / 60)::bigint END AS \"Offline (min)\", last_update AS \"Last update\" FROM latest ORDER BY battery_level ASC NULLS LAST, 5 DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [],
+        "footer": { "show": false, "reducer": ["sum"], "fields": "" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Battery %" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "orange", "value": 5 },
+                    { "color": "green", "value": 20 }
+                  ]
+                }
+              },
+              { "id": "unit", "value": "percent" },
+              { "id": "max", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "Online": { "color": "green", "index": 0 }, "Offline": { "color": "red", "index": 1 } } }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Offline (min)" },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "orange", "value": 60 },
+                    { "color": "red", "value": 480 }
+                  ]
+                }
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Battery level over time — green = online, red = offline",
+      "description": "One green and one red series per selected device. A short gap appears at each online/offline transition; that is expected.",
+      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 14 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT sampled_at AS \"time\", device_number || ' online' AS metric, CASE WHEN online THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND $__timeFilter(sampled_at) UNION ALL SELECT sampled_at AS \"time\", device_number || ' offline' AS metric, CASE WHEN NOT online THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND $__timeFilter(sampled_at) ORDER BY 1"
+        }
+      ],
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": 1800000,
+            "showPoints": "never",
+            "pointSize": 5,
+            "axisSoftMin": 0,
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent", "value": null },
+              { "color": "red", "value": 5 },
+              { "color": "orange", "value": 20 }
+            ]
+          },
+          "color": { "mode": "fixed" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": "/ online$/" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": "/ offline$/" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "type": "state-timeline",
+      "title": "Online / offline timeline",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 25 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT sampled_at AS \"time\", device_number AS metric, online::int AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND $__timeFilter(sampled_at) ORDER BY 1"
+        }
+      ],
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "center",
+        "rowHeight": 0.85,
+        "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 90, "lineWidth": 0, "spanNulls": false },
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "Offline", "color": "red", "index": 1 },
+                "1": { "text": "Online", "color": "green", "index": 0 }
+              }
+            }
+          ],
+          "max": 1,
+          "min": 0
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "annotations": { "list": [] },
+  "links": []
+}

@@ -1,0 +1,22 @@
+# Template only — install.sh builds the real file, including ONLY the receiver
+# blocks whose .env values are set (ALERT_EMAIL_TO and/or ALERT_WEBHOOK_URL).
+# Both integrations live in ONE contact point so a single notification policy
+# can fan out to both.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: hmdm-alerts
+    receivers:
+      # __EMAIL_BLOCK__ (kept when ALERT_EMAIL_TO is non-empty)
+      - uid: hmdm-alerts-email
+        type: email
+        settings:
+          addresses: "${ALERT_EMAIL_TO}"
+          singleEmail: true
+      # __WEBHOOK_BLOCK__ (kept when ALERT_WEBHOOK_URL is non-empty)
+      - uid: hmdm-alerts-webhook
+        type: webhook
+        settings:
+          url: "${ALERT_WEBHOOK_URL}"
+          httpMethod: POST

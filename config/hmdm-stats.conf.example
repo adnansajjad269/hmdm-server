@@ -1,0 +1,30 @@
+# /etc/hmdm-stats/hmdm-stats.conf — written by install.sh (preflight detection
+# + .env). This example documents the format; do not deploy it verbatim.
+# Mode 0600: contains the snapshot role's DB password.
+
+[db]
+# psycopg2 DSN. Password auth (default):
+dsn = host=127.0.0.1 port=5432 dbname=hmdm user=hmdm_stats password=CHANGE_ME
+# Peer-auth fallback (cron runs as the postgres user):
+# dsn = dbname=hmdm
+
+[mapping]
+# Detected by preflight.sh against the live schema.
+devices_table = devices
+id_col = id
+number_col = number
+info_col = info
+# text-json | jsonb
+info_kind = text-json
+lastupdate_col = lastupdate
+# epoch_millis | epoch_seconds | timestamptz
+lastupdate_kind = epoch_millis
+# Top-level keys inside the info JSON payload.
+battery_json_key = batteryLevel
+charging_json_key = batteryCharging
+
+[sampling]
+# Must equal cron interval x 60 (install.sh keeps them in sync).
+bucket_seconds = 600
+online_threshold_seconds = 1800
+retention_days = 30

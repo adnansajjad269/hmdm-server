@@ -1,0 +1,156 @@
+# Grafana file-provisioned alert rules — rendered by install.sh with an explicit
+# envsubst variable list (${BATTERY_WARN} ${BATTERY_CRIT} ${OFFLINE_ALERT_SECONDS}
+# ${ONLINE_THRESHOLD_SECONDS}) so Grafana macros like $__timeFilter are untouched.
+# UIDs are hardcoded so re-provisioning updates rules instead of duplicating them.
+# The folder "HMDM Stats" (uid hmdm-stats) is created by the dashboard provider.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: hmdm-fleet
+    folder: HMDM Stats
+    interval: 5m
+    rules:
+      - uid: hmdm-offline-1h
+        title: Device offline too long
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: warning
+          source: hmdm-stats
+        annotations:
+          summary: "Device {{ $labels.device_number }} has been offline for over ${OFFLINE_ALERT_SECONDS} seconds."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 21600, to: 0 }
+            datasourceUid: hmdm-postgres
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              rawSql: "WITH latest AS (SELECT DISTINCT ON (device_number) device_number, online, last_update FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT device_number, extract(epoch FROM (now() - COALESCE(last_update, timestamptz 'epoch'))) AS seconds_offline FROM latest WHERE NOT online"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [${OFFLINE_ALERT_SECONDS}] }
+
+      - uid: hmdm-battery-warn
+        title: Battery low (warn tier)
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: warning
+          source: hmdm-stats
+        annotations:
+          summary: "Device {{ $labels.device_number }} battery below ${BATTERY_WARN}% while online and not charging."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 21600, to: 0 }
+            datasourceUid: hmdm-postgres
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              rawSql: "WITH latest AS (SELECT DISTINCT ON (device_number) device_number, battery_level, charging, online FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT device_number, battery_level FROM latest WHERE online AND charging IS NULL AND battery_level IS NOT NULL"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [${BATTERY_WARN}] }
+
+      - uid: hmdm-battery-crit
+        title: Battery critically low (freeze tier)
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: critical
+          source: hmdm-stats
+        annotations:
+          summary: "Device {{ $labels.device_number }} battery below ${BATTERY_CRIT}% — FreeKiosk freeze tier."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 21600, to: 0 }
+            datasourceUid: hmdm-postgres
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              rawSql: "WITH latest AS (SELECT DISTINCT ON (device_number) device_number, battery_level, charging, online FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT device_number, battery_level FROM latest WHERE online AND charging IS NULL AND battery_level IS NOT NULL"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [${BATTERY_CRIT}] }
+
+      - uid: hmdm-data-stale
+        title: Snapshot pipeline stale
+        condition: C
+        for: 0s
+        noDataState: Alerting
+        execErrState: Alerting
+        labels:
+          severity: critical
+          source: hmdm-stats
+        annotations:
+          summary: "No new device_status_history rows for over ${ONLINE_THRESHOLD_SECONDS} seconds — the snapshot cron job is not writing. Check /var/log/hmdm-stats/snapshot.log."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 21600, to: 0 }
+            datasourceUid: hmdm-postgres
+            model:
+              refId: A
+              format: table
+              rawQuery: true
+              rawSql: "SELECT COALESCE(extract(epoch FROM (now() - max(sampled_at))), 999999) AS staleness_seconds FROM device_status_history"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [${ONLINE_THRESHOLD_SECONDS}] }

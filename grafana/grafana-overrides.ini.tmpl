@@ -1,0 +1,22 @@
+# Keys merged into /etc/grafana/grafana.ini by install.sh (configparser merge,
+# backup taken first). Rendered with envsubst before merging.
+# SECURITY: anonymous Viewer access is enabled so the injected Headwind
+# "Analytics" tab can iframe the dashboard without a login prompt. This is only
+# acceptable because http_addr binds to the LAN — never port-forward :3000.
+
+[server]
+http_addr = ${GRAFANA_BIND_ADDR}
+http_port = 3000
+
+[security]
+allow_embedding = true
+cookie_samesite = lax
+
+[auth.anonymous]
+enabled = true
+org_name = Main Org.
+org_role = Viewer
+
+[analytics]
+reporting_enabled = false
+check_for_updates = false
