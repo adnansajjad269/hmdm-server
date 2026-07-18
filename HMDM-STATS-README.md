@@ -143,6 +143,32 @@ they don't rebuild themselves — see `webpanel/analytics-manual-steps.md`,
 which now points at the native tab first. If you deploy from this repo's
 source, pass `--skip-webpanel` to `install.sh`.
 
+## Why not the built-in `deviceinfo` plugin?
+
+Headwind CE already ships an open-source plugin (`plugins/deviceinfo/`) with its
+own per-device history tables (`plugin_deviceinfo_deviceParams` +
+`..._device`/`..._wifi`/`..._gps`/`..._mobile[2]`), a per-customer settings UI
+(`dataPreservePeriod`, `intervalMins`, `sendData` — same 15-min/30-day defaults
+we use here), and a daily purge job. It looks like a natural fit, but it's not
+usable as-is: the launcher-side code that would actually populate those
+tables (`DetailedInfoWorker.schedule()`/`requestConfigUpdate()` in
+`hmdm-android`) is a documented Pro-only stub in the open-source build — its
+methods are no-ops, `ServerService.sendDetailedInfo`/`getDetailedInfoConfig`
+are never called anywhere in the app, and the matching on-device buffer table
+(`InfoHistoryTable`) is created but never written to. Turning on `sendData`
+for a customer today does nothing; no device will ever call the ingest
+endpoint. Getting real data flowing would mean writing and shipping a new
+`DetailedInfoWorker` implementation to the whole fleet — a much bigger,
+riskier change than this pipeline, which needs **no launcher changes** at all
+because it reads `devices.info`/`lastupdate`, already populated by the
+launcher's real, unconditional 15-min sync. The plugin's own UI is also
+single-device-only raw tables with no chart and no fleet view either way, so
+even with data flowing it wouldn't replace the Grafana dashboard here.
+
+If a real `DetailedInfoWorker` (or a Pro launcher) is ever adopted, its
+richer fields (wifi RSSI, GPS, mobile signal, memory) would be a legitimate
+future enhancement to layer onto this same Grafana dashboard — not a v1 item.
+
 ## Changing the sample interval / retention
 
 Edit `SNAPSHOT_INTERVAL_MIN` / `RETENTION_DAYS` in `.env` and re-run
