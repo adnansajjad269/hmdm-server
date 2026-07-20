@@ -2623,4 +2623,20 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="21.07.26-10:00" author="claude" context="common">
+        <comment>Grant Analytics permission to any role missed by the hardcoded role IDs above (installs whose role IDs differ from the stock 1/2/3/100 seed)</comment>
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+            SELECT r.id, p.id FROM userRoles r, permissions p
+            WHERE p.name = 'analytics'
+            AND NOT EXISTS (
+                SELECT 1 FROM userRolePermissions urp
+                WHERE urp.roleId = r.id AND urp.permissionId = p.id
+            );
+        </sql>
+        <rollback>
+            <!-- no-op: the 20.07.26-12:00 rollback already removes the permission and its grants via ON DELETE CASCADE -->
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
