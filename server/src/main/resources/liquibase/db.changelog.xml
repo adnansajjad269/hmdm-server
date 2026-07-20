@@ -2609,4 +2609,18 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="20.07.26-12:00" author="claude" context="common">
+        <comment>Add Analytics tab permission</comment>
+        <sql>
+            INSERT INTO permissions (name, description) VALUES ('analytics', 'View the Analytics tab');
+            INSERT INTO userRolePermissions (roleId, permissionId) VALUES (1, currval('permissions_id_seq'));
+            INSERT INTO userRolePermissions (roleId, permissionId) VALUES (2, currval('permissions_id_seq'));
+            INSERT INTO userRolePermissions (roleId, permissionId) VALUES (3, currval('permissions_id_seq'));
+            INSERT INTO userRolePermissions (roleId, permissionId) VALUES (100, currval('permissions_id_seq'));
+        </sql>
+        <rollback>
+            DELETE FROM permissions WHERE name = 'analytics';
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

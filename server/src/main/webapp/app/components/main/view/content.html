@@ -11,7 +11,7 @@
             <ng-include src="'app/components/main/view/devices.html'" ng-if="activeTab === 'DEVICES'"></ng-include>
         </tab>
 
-        <tab active="act.ANALYTICS" ng-click="openTab('ANALYTICS')">
+        <tab active="act.ANALYTICS" ng-if="hasPermission('analytics')" ng-click="openTab('ANALYTICS')">
             <tab-heading localized-change-tracking>tab.analytics</tab-heading>
             <ng-include src="'app/components/main/view/analytics.html'" ng-if="activeTab === 'ANALYTICS'"></ng-include>
         </tab>

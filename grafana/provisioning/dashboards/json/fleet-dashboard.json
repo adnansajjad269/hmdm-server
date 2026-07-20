@@ -8,7 +8,7 @@
   "schemaVersion": 39,
   "version": 1,
   "refresh": "5m",
-  "time": { "from": "now-30d", "to": "now" },
+  "time": { "from": "now-7d", "to": "now" },
   "templating": {
     "list": [
       {
@@ -284,8 +284,8 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Battery level over time — green = online, red = offline",
-      "description": "One green and one red series per selected device. A short gap appears at each online/offline transition; that is expected.",
+      "title": "Battery level over time — bright green = charging, green = online, red = offline",
+      "description": "One series per device per state (bright green = online+charging, green = online+not charging, red = offline). A short gap appears at each state transition; that is expected. Legend hidden — hover a line for its device.",
       "gridPos": { "h": 11, "w": 24, "x": 0, "y": 14 },
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
       "targets": [
@@ -293,12 +293,12 @@
           "refId": "A",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT sampled_at AS \"time\", device_number || ' online' AS metric, CASE WHEN online THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND $__timeFilter(sampled_at) UNION ALL SELECT sampled_at AS \"time\", device_number || ' offline' AS metric, CASE WHEN NOT online THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND $__timeFilter(sampled_at) ORDER BY 1"
+          "rawSql": "SELECT sampled_at AS \"time\", device_number || ' online-charging' AS metric, CASE WHEN online AND charging IS NOT NULL THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND $__timeFilter(sampled_at) UNION ALL SELECT sampled_at AS \"time\", device_number || ' online-notcharging' AS metric, CASE WHEN online AND charging IS NULL THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND $__timeFilter(sampled_at) UNION ALL SELECT sampled_at AS \"time\", device_number || ' offline' AS metric, CASE WHEN NOT online THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND $__timeFilter(sampled_at) ORDER BY 1"
         }
       ],
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }
+        "legend": { "showLegend": false, "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }
       },
       "fieldConfig": {
         "defaults": {
@@ -328,7 +328,11 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byRegexp", "options": "/ online$/" },
+            "matcher": { "id": "byRegexp", "options": "/ online-charging$/" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "light-green" } }]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": "/ online-notcharging$/" },
             "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
           },
           {

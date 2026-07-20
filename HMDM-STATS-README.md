@@ -74,11 +74,13 @@ never synced counts as offline.
 - **Needs attention** table: all devices, lowest battery / longest offline
   first — the operational view at 200 devices.
 - **Battery over time**: scoped by the multi-select *Device* picker (defaults
-  to one device — don't select All with a big fleet). Each device renders as a
-  green line while online and red while offline. A one-sample gap at each
-  transition is expected (two series per device under the hood).
+  to one device — don't select All with a big fleet). Each device renders as
+  bright green while online and charging, green while online and not charging,
+  and red while offline. A one-sample gap at each state transition is expected
+  (three series per device under the hood). Legend is hidden — hover a line to
+  identify its device.
 - **Online/offline timeline**: banded state view, same device picker.
-- Default range: last 30 days; zoom freely.
+- Default range: last 7 days; zoom freely.
 
 Panels are provisioned read-only from
 `grafana/provisioning/dashboards/json/fleet-dashboard.json`; edit that file

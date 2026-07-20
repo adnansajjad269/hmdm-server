@@ -1107,6 +1107,7 @@ document.localization ['en_US'] = {
     'permission.plugin_push_delete': 'Delete Push messages',
     'permission.get_updates': 'Check for updates',
     'permission.plugin_xtra_access': 'Request for Premium version',
+    'permission.analytics': 'View Analytics',
     'permission.applications': 'View applications',
     'permission.edit_applications': 'Manage applications',
     'permission.edit_application_versions': 'Manage application versions',
