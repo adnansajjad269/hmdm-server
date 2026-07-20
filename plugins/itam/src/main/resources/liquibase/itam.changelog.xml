@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.0.xsd"
+        logicalFilePath="itam.changelog.xml">
+
+    <!--
+    The change set IDs MUST start with "plugin-itam" followed by dash symbol ALWAYS.
+    The database object names declared by plugin MUST always start with "plugin_itam" followed by underscore symbol.
+    -->
+
+    <changeSet id="plugin-itam-21.07.2026-10:00" author="claude" context="common">
+        <comment>Table,new: plugin_itam_log</comment>
+        <sql>
+            CREATE TABLE plugin_itam_log (
+                id UUID NOT NULL DEFAULT gen_random_uuid() CONSTRAINT plugin_itam_log_pr_key PRIMARY KEY,
+                customerId INT NOT NULL,
+                deviceId INT NOT NULL REFERENCES devices(id),
+                ownerName VARCHAR(250),
+                ownershipDate TIMESTAMPTZ NOT NULL,
+                assetStatus VARCHAR(20) NOT NULL,
+                deviceCondition VARCHAR(10) NOT NULL,
+                batteryCondition VARCHAR(10) NOT NULL,
+                comments TEXT,
+                pictures TEXT, -- JSON-encoded array of local file paths, max 5 items (enforced at app layer)
+                loggedByUserId INT REFERENCES users(id),
+                deletedByUserId INT REFERENCES users(id),
+                createdAt TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deletedAt TIMESTAMPTZ,
+                CONSTRAINT plugin_itam_log_asset_status_chk
+                    CHECK (assetStatus IN ('IN_USE', 'IN_STOCK', 'UNDER_REPAIR', 'RETIRED')),
+                CONSTRAINT plugin_itam_log_device_condition_chk
+                    CHECK (deviceCondition IN ('GOOD', 'BAD')),
+                CONSTRAINT plugin_itam_log_battery_condition_chk
+                    CHECK (batteryCondition IN ('GOOD', 'BAD'))
+            );
+            CREATE INDEX plugin_itam_log_device_idx ON plugin_itam_log (deviceId);
+            CREATE INDEX plugin_itam_log_created_idx ON plugin_itam_log (createdAt DESC);
+            CREATE INDEX plugin_itam_log_deleted_idx ON plugin_itam_log (deletedAt);
+        </sql>
+        <rollback>
+            DROP TABLE plugin_itam_log;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="plugin-itam-21.07.2026-10:05" author="claude" context="common">
+        <comment>Register itam plugin</comment>
+        <sql>
+            INSERT INTO plugins (
+                identifier, name, description,
+                javascriptModuleFile,
+                functionsViewTemplate,
+                settingsViewTemplate,
+                namelocalizationkey,
+                settingsPermission, functionsPermission, deviceFunctionsPermission
+            )
+            VALUES (
+                'itam', 'IT Asset Management', 'Tracks device ownership, condition and status history',
+                'app/components/plugins/itam/itam.module.js',
+                'app/components/plugins/itam/views/itam.html',
+                null,
+                'plugin.itam.localization.key.name',
+                'plugin_itam_view',
+                'plugin_itam_view',
+                null
+            );
+        </sql>
+        <rollback>
+            DELETE FROM plugins WHERE identifier = 'itam';
+        </rollback>
+    </changeSet>
+
+    <changeSet id="plugin-itam-21.07.2026-10:10" author="claude" context="common">
+        <comment>Permissions for itam plugin: view, create, delete, export</comment>
+        <sql>
+            INSERT INTO permissions (name, description) VALUES ('plugin_itam_view', 'View ITAM logs');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT id, currval('permissions_id_seq') FROM userRoles;
+
+            INSERT INTO permissions (name, description) VALUES ('plugin_itam_create', 'Create ITAM log entries');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT id, currval('permissions_id_seq') FROM userRoles;
+
+            INSERT INTO permissions (name, description) VALUES ('plugin_itam_delete', 'Delete ITAM log entries');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT id, currval('permissions_id_seq') FROM userRoles;
+
+            INSERT INTO permissions (name, description) VALUES ('plugin_itam_export', 'Export ITAM logs to CSV');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT id, currval('permissions_id_seq') FROM userRoles;
+        </sql>
+        <rollback>
+            DELETE FROM permissions WHERE name IN
+                ('plugin_itam_view', 'plugin_itam_create', 'plugin_itam_delete', 'plugin_itam_export');
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

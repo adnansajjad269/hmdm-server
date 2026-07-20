@@ -1,0 +1,83 @@
+<!-- Localization completed -->
+<div ng-controller="PluginItamAddEntryController">
+    <div class="modal-header">
+        <h4 localized>plugin.itam.modal.add.entry.title</h4>
+    </div>
+    <div class="modal-body">
+        <div ng-show="errorMessage" class="error"><span>{{errorMessage}}</span></div>
+
+        <div class="form-group">
+            <label localized>plugin.itam.field.device</label>
+            <input type="text" class="form-control" ng-model="selectedDeviceLabel"
+                   localized-placeholder="plugin.itam.placeholder.device.search"
+                   autocomplete="off"
+                   typeahead="device for device in getDevices($viewValue)"
+                   typeahead-wait-ms="300"
+                   typeahead-on-select="onDeviceSelected()">
+        </div>
+
+        <div class="alert alert-info" ng-if="telemetry">
+            <strong localized>plugin.itam.telemetry.title</strong>
+            <div>
+                <span localized>plugin.itam.telemetry.model</span>: {{telemetry.model || '—'}} &nbsp;|&nbsp;
+                <span localized>plugin.itam.telemetry.serial</span>: {{telemetry.serial || '—'}} &nbsp;|&nbsp;
+                <span localized>plugin.itam.telemetry.osVersion</span>: {{telemetry.androidVersion || '—'}} &nbsp;|&nbsp;
+                <span localized>plugin.itam.telemetry.lastCheckIn</span>: {{telemetry.lastCheckIn | date:'medium'}}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label localized>plugin.itam.field.assetStatus</label>
+            <select class="form-control" ng-model="entry.assetStatus">
+                <option ng-repeat="s in assetStatuses" value="{{s}}">{{s}}</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label localized>plugin.itam.field.owner</label>
+            <input type="text" class="form-control" ng-model="entry.ownerName"
+                   localized-placeholder="plugin.itam.placeholder.owner.blank.for.stock">
+        </div>
+
+        <div class="form-group">
+            <label localized>plugin.itam.field.ownershipDate</label>
+            <input type="date" class="form-control" ng-model="entry.ownershipDate" ng-disabled="dateLocked">
+            <span class="help-block" ng-if="dateLocked" localized>plugin.itam.hint.date.locked</span>
+        </div>
+
+        <div class="form-group">
+            <label localized>plugin.itam.field.deviceCondition</label>
+            <select class="form-control" ng-model="entry.deviceCondition">
+                <option ng-repeat="c in conditions" value="{{c}}">{{c}}</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label localized>plugin.itam.field.batteryCondition</label>
+            <select class="form-control" ng-model="entry.batteryCondition">
+                <option ng-repeat="c in conditions" value="{{c}}">{{c}}</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label localized>plugin.itam.field.comments</label>
+            <textarea class="form-control" rows="3" ng-model="entry.comments"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label localized>plugin.itam.field.pictures</label>
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp" capture="environment"
+                   onchange="angular.element(this).scope().onFilesSelected(this.files); angular.element(this).scope().$apply();">
+            <div class="help-block" localized>plugin.itam.hint.pictures.limit</div>
+            <ul class="list-unstyled">
+                <li ng-repeat="p in pictures track by $index">
+                    {{p.name}} <a href ng-click="removePicture($index)">&times;</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-default" ng-click="closeModal()" localized>button.cancel</button>
+        <button type="button" class="btn btn-primary" ng-disabled="saving" ng-click="save()" localized>button.save</button>
+    </div>
+</div>

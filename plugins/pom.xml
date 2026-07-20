@@ -45,6 +45,7 @@
         <module>messaging</module>
         <module>push</module>
         <module>xtra</module>
+        <module>itam</module>
     </modules>
 
     <dependencies>
