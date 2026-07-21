@@ -60,6 +60,9 @@
         <result property="custom3" column="custom3"/>
         <result property="oldNumber" column="oldNumber"/>
         <result property="fastSearch" column="fastSearch"/>
+        <result property="wifiSsid" column="wifiSsid"/>
+        <result property="wifiBssid" column="wifiBssid"/>
+        <result property="location" column="location"/>
 
         <collection property="groups" ofType="com.hmdm.rest.json.LookupItem">
             <result property="id" column="groupId"/>
@@ -260,7 +263,10 @@
                    WHEN (EXTRACT(EPOCH FROM NOW()) * 1000 - devices.lastupdate) &lt; (2 * 3600 * 1000) THEN 'green'
                    WHEN (EXTRACT(EPOCH FROM NOW()) * 1000 - devices.lastupdate) &lt; (4 * 3600 * 1000) THEN 'yellow'
                    ELSE 'red'
-               END AS statusCode
+               END AS statusCode,
+               wifiSsidLog.display AS wifiSsid,
+               wifiBssidLog.display AS wifiBssid,
+               locationLog.display AS location
         FROM devices
         INNER JOIN (<include refid="allowedDevicesSelect"/>) allowedDevices ON allowedDevices.deviceId = devices.id
         LEFT JOIN configurations ON devices.configurationId = configurations.id
@@ -268,6 +274,34 @@
         LEFT JOIN groups ON deviceGroups.groupId = groups.id
         LEFT JOIN applicationVersions ON configurations.mainAppId = applicationVersions.id
         LEFT JOIN applications ON applications.id = applicationVersions.applicationid
+        <!--
+        Derived from the devicelog plugin's raw log lines (plugin_devicelog_log.message), not a device-pushed
+        status field. See plugin_devicelog_log_device_time_idx, added alongside this query, for why an index
+        on (deviceId, createTime DESC) is required here.
+        -->
+        LEFT JOIN LATERAL (
+            SELECT to_char(to_timestamp(l.createTime / 1000.0), 'DD/MM HH24:MI') || ' &lt;&gt; ' ||
+                   substring(l.message from 'ssid="([^"]*)"') AS display
+            FROM plugin_devicelog_log l
+            WHERE l.deviceId = devices.id AND l.message ILIKE '%ssid=%'
+            ORDER BY l.createTime DESC
+            LIMIT 1
+        ) wifiSsidLog ON true
+        LEFT JOIN LATERAL (
+            SELECT substring(l.message from 'WIFI_BSSID\S*\s+(\S+)') AS display
+            FROM plugin_devicelog_log l
+            WHERE l.deviceId = devices.id AND l.message ~ 'WIFI_BSSID'
+            ORDER BY l.createTime DESC
+            LIMIT 1
+        ) wifiBssidLog ON true
+        LEFT JOIN LATERAL (
+            SELECT to_char(to_timestamp(l.createTime / 1000.0), 'DD/MM HH24:MI') || ' &lt;&gt; ' ||
+                   substring(l.message from 'lat=(-?[0-9.]+)') || ', ' || substring(l.message from 'lon=(-?[0-9.]+)') AS display
+            FROM plugin_devicelog_log l
+            WHERE l.deviceId = devices.id AND l.message ILIKE '%lat=%' AND l.message ILIKE '%lon=%'
+            ORDER BY l.createTime DESC
+            LIMIT 1
+        ) locationLog ON true
         ORDER BY allowedDevices.sortingValue <if test="sortDir.equalsIgnoreCase(&quot;desc&quot;)">DESC</if>,
                  allowedDevices.searchPriority DESC, LOWER(devices.number), LOWER(groups.name);
     </select>

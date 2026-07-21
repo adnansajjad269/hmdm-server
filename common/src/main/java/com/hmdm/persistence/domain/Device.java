@@ -66,6 +66,12 @@ public class Device implements CustomerData, Serializable {
     private String custom2;
     @ApiModelProperty("Custom property #3")
     private String custom3;
+    @ApiModelProperty("Latest WiFi SSID seen in device logs, formatted as \"dd/MM HH:mm <> ssid\"")
+    private String wifiSsid;
+    @ApiModelProperty("Latest WiFi BSSID (MAC address) seen in device logs")
+    private String wifiBssid;
+    @ApiModelProperty("Latest GPS location seen in device logs, formatted as \"dd/MM HH:mm <> lat, lon\"")
+    private String location;
 
     // Many-to-many relations
     @ApiModelProperty("A list of groups assigned to device")
@@ -271,6 +277,30 @@ public class Device implements CustomerData, Serializable {
 
     public void setCustom3(String custom3) {
         this.custom3 = custom3;
+    }
+
+    public String getWifiSsid() {
+        return wifiSsid;
+    }
+
+    public void setWifiSsid(String wifiSsid) {
+        this.wifiSsid = wifiSsid;
+    }
+
+    public String getWifiBssid() {
+        return wifiBssid;
+    }
+
+    public void setWifiBssid(String wifiBssid) {
+        this.wifiBssid = wifiBssid;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
     }
 
     public List<LookupItem> getGroups() {

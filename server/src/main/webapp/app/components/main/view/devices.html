@@ -346,6 +346,9 @@
                 <span ng-if='paging.sortBy === "CUSTOM3"' class="glyphicon"
                       ng-class="{'glyphicon-sort-by-alphabet': paging.sortAsc, 'glyphicon-sort-by-alphabet-alt': !paging.sortAsc}"></span>
             </th>
+            <th ng-if="settings.columnDisplayedWifiSsid" localized>table.heading.device.wifiSsid</th>
+            <th ng-if="settings.columnDisplayedWifiBssid" localized>table.heading.device.wifiBssid</th>
+            <th ng-if="settings.columnDisplayedLocation" localized>table.heading.device.location</th>
 
             <th ng-if="hasPermission('edit_devices')" class='actions-column' localized>table.heading.device.actions</th>
         </tr>
@@ -433,6 +436,15 @@
             </td>
             <td ng-if="settings.columnDisplayedCustom3 && commonSettings.customPropertyName3">
                 <span>{{device.custom3}}</span>
+            </td>
+            <td ng-if="settings.columnDisplayedWifiSsid">
+                <span>{{device.wifiSsid}}</span>
+            </td>
+            <td ng-if="settings.columnDisplayedWifiBssid">
+                <span>{{device.wifiBssid}}</span>
+            </td>
+            <td ng-if="settings.columnDisplayedLocation">
+                <span>{{device.location}}</span>
             </td>
 
             <td class="deviceActions">

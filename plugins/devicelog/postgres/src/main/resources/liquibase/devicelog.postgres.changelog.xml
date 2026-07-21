@@ -111,4 +111,14 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="plugin-devicelog-21.07.2026-15:00" author="claude" context="common">
+        <comment>Index plugin_devicelog_log by device+time, needed for the Devices-grid SSID/BSSID/Location columns' "latest matching line per device" lookup</comment>
+        <sql>
+            CREATE INDEX plugin_devicelog_log_device_time_idx ON plugin_devicelog_log (deviceId, createTime DESC);
+        </sql>
+        <rollback>
+            DROP INDEX plugin_devicelog_log_device_time_idx;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

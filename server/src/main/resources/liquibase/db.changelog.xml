@@ -2639,4 +2639,18 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="21.07.26-15:00" author="claude" context="common">
+        <comment>Add per-role visibility toggles for the Devices grid's SSID/BSSID/Location columns</comment>
+        <sql>
+            ALTER TABLE userRoleSettings ADD COLUMN columnDisplayedWifiSsid BOOLEAN;
+            ALTER TABLE userRoleSettings ADD COLUMN columnDisplayedWifiBssid BOOLEAN;
+            ALTER TABLE userRoleSettings ADD COLUMN columnDisplayedLocation BOOLEAN;
+        </sql>
+        <rollback>
+            ALTER TABLE userRoleSettings DROP COLUMN columnDisplayedWifiSsid;
+            ALTER TABLE userRoleSettings DROP COLUMN columnDisplayedWifiBssid;
+            ALTER TABLE userRoleSettings DROP COLUMN columnDisplayedLocation;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

@@ -65,6 +65,9 @@ public interface UserRoleSettingsMapper {
                     "columnDisplayedCustom1," +
                     "columnDisplayedCustom2," +
                     "columnDisplayedCustom3," +
+                    "columnDisplayedWifiSsid," +
+                    "columnDisplayedWifiBssid," +
+                    "columnDisplayedLocation," +
                     "roleId," +
                     "customerId" +
                     ") VALUES (" +
@@ -92,6 +95,9 @@ public interface UserRoleSettingsMapper {
                     "#{columnDisplayedCustom1}," +
                     "#{columnDisplayedCustom2}," +
                     "#{columnDisplayedCustom3}," +
+                    "#{columnDisplayedWifiSsid}," +
+                    "#{columnDisplayedWifiBssid}," +
+                    "#{columnDisplayedLocation}," +
                     "#{roleId}," +
                     "#{customerId}" +
                     ") " +
@@ -120,7 +126,10 @@ public interface UserRoleSettingsMapper {
                     "columnDisplayedPublicIp = EXCLUDED.columnDisplayedPublicIp, " +
                     "columnDisplayedCustom1 = EXCLUDED.columnDisplayedCustom1, " +
                     "columnDisplayedCustom2 = EXCLUDED.columnDisplayedCustom2, " +
-                    "columnDisplayedCustom3 = EXCLUDED.columnDisplayedCustom3"
+                    "columnDisplayedCustom3 = EXCLUDED.columnDisplayedCustom3, " +
+                    "columnDisplayedWifiSsid = EXCLUDED.columnDisplayedWifiSsid, " +
+                    "columnDisplayedWifiBssid = EXCLUDED.columnDisplayedWifiBssid, " +
+                    "columnDisplayedLocation = EXCLUDED.columnDisplayedLocation"
     })
     void saveUserRoleCommonSettings(UserRoleSettings settings);
 }
