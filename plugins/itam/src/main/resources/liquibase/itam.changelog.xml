@@ -131,4 +131,24 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="plugin-itam-22.07.2026-14:10" author="claude" context="common">
+        <comment>Grant the itam permissions to the org-admin (Administrator) role as well. The super-admin role
+        already has implicit access; this makes the Administrator role (roleId 2, the app's fixed
+        role.orgadmin.id per build.properties, and the convention used for org-admin grants throughout
+        db.changelog.xml) an admin that keeps ITAM by default. All other roles stay revoked from the
+        previous changeset.</comment>
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 2, id FROM permissions
+                WHERE name IN ('plugin_itam_view', 'plugin_itam_create', 'plugin_itam_delete', 'plugin_itam_export');
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions
+            WHERE roleId = 2 AND permissionId IN (
+                SELECT id FROM permissions
+                WHERE name IN ('plugin_itam_view', 'plugin_itam_create', 'plugin_itam_delete', 'plugin_itam_export')
+            );
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
