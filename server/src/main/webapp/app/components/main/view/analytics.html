@@ -1,13 +1,13 @@
 <!-- Localization completed -->
 <div ng-controller="AnalyticsTabController" style="position:relative">
 
-    <div class="alert alert-warning" ng-if="!grafanaAvailable">
-        <span localized-change-tracking>analytics.https.warning</span>
-    </div>
-
-    <iframe ng-if="grafanaAvailable"
-            ng-src="{{grafanaUrl}}"
+    <iframe ng-src="{{grafanaUrl}}"
             style="width:100%;height:calc(100vh - 160px);border:0"
             title="HMDM Analytics"></iframe>
+
+    <div class="help-block" style="margin-top:8px;">
+        <span localized-change-tracking>analytics.trouble.loading</span>
+        <a href="{{grafanaUrl}}" target="_blank" rel="noopener">{{grafanaUrl}}</a>
+    </div>
 
 </div>

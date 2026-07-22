@@ -1120,7 +1120,7 @@ document.localization ['en_US'] = {
     'permission.files': 'View files',
     'permission.edit_files': 'Manage files',
 
-    'analytics.https.warning': 'The Analytics dashboard is served over plain HTTP and cannot be embedded on this HTTPS page (browsers block mixed content). Open it directly instead: http://<server-host>:3000',
+    'analytics.trouble.loading': 'Dashboard not loading?',
 
     'yes': 'yes',
     'no': 'no'

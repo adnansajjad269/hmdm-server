@@ -53,6 +53,11 @@ OFFLINE_ALERT_SECONDS=${OFFLINE_ALERT_SECONDS:-3600}
 HMDM_DB_NAME=${HMDM_DB_NAME:-hmdm}
 GRAFANA_BIND_ADDR=${GRAFANA_BIND_ADDR:-10.10.10.12}
 GRAFANA_URL=${GRAFANA_URL:-http://$GRAFANA_BIND_ADDR:3000}
+# Optional: externally-reachable HTTPS URL Grafana is reverse-proxied under (e.g.
+# https://your-panel-domain/grafana), when the panel itself is served over HTTPS and
+# a proxy (Caddy/nginx) forwards that path to Grafana on GRAFANA_BIND_ADDR:3000.
+# Leave empty to keep the plain-HTTP-only, iframe-on-HTTP-panels-only behavior.
+GRAFANA_PUBLIC_URL=${GRAFANA_PUBLIC_URL:-}
 case "$SNAPSHOT_INTERVAL_MIN" in
     ''|*[!0-9]*) echo "SNAPSHOT_INTERVAL_MIN must be a number" >&2; exit 1 ;;
 esac
@@ -186,6 +191,14 @@ if [ -n "${ALERT_EMAIL_TO:-}" ]; then
             echo "from_address = ${SMTP_FROM:-grafana@localhost}"
         } >>"$OVERRIDES"
     fi
+fi
+# optional sub-path serving, only when the panel is reverse-proxied to Grafana over HTTPS
+if [ -n "$GRAFANA_PUBLIC_URL" ]; then
+    {
+        echo "[server]"
+        echo "root_url = ${GRAFANA_PUBLIC_URL%/}/"
+        echo "serve_from_sub_path = true"
+    } >>"$OVERRIDES"
 fi
 python3 - "$GRAFANA_INI" "$OVERRIDES" <<'PYEOF'
 import configparser, sys
