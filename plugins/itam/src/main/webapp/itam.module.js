@@ -28,7 +28,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             remove: {url: 'rest/plugins/itam/private/logs/:id', method: 'DELETE'}
         });
     })
-    .controller('PluginItamTabController', function ($scope, $rootScope, $modal, $window,
+    .controller('PluginItamTabController', function ($scope, $rootScope, $uibModal, $window,
                                                       pluginItamService, confirmModal, authService, localization) {
         $scope.hasPermission = authService.hasPermission;
 
@@ -101,7 +101,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
         };
 
         $scope.addEntry = function () {
-            var modalInstance = $modal.open({
+            var modalInstance = $uibModal.open({
                 templateUrl: 'app/components/plugins/itam/views/addEntry.modal.html',
                 controller: 'PluginItamAddEntryController',
                 size: 'lg'
@@ -126,7 +126,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             });
         };
     })
-    .controller('PluginItamAddEntryController', function ($scope, $modalInstance, $http, $q,
+    .controller('PluginItamAddEntryController', function ($scope, $uibModalInstance, $http, $q,
                                                             pluginItamService, localization) {
         $scope.saving = false;
         $scope.errorMessage = undefined;
@@ -250,7 +250,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
         };
 
         $scope.closeModal = function () {
-            $modalInstance.dismiss();
+            $uibModalInstance.dismiss();
         };
 
         $scope.save = function () {
@@ -281,7 +281,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             }).then(function (resp) {
                 $scope.saving = false;
                 if (resp.data.status === 'OK') {
-                    $modalInstance.close(true);
+                    $uibModalInstance.close(true);
                 } else {
                     $scope.errorMessage = localization.localizeServerResponse(resp.data);
                 }
