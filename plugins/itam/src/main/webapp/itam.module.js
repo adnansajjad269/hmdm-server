@@ -28,7 +28,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             remove: {url: 'rest/plugins/itam/private/logs/:id', method: 'DELETE'}
         });
     })
-    .controller('PluginItamTabController', function ($scope, $rootScope, $uibModal, $window,
+    .controller('PluginItamTabController', function ($scope, $rootScope, $uibModal, $window, $stateParams,
                                                       pluginItamService, confirmModal, authService, localization) {
         $scope.hasPermission = authService.hasPermission;
 
@@ -87,6 +87,11 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             }, function () {
                 $scope.errorMessage = localization.localize('error.request.failure');
             });
+        }
+
+        // Pre-search when opened via a device-number link from the Devices grid
+        if ($stateParams && $stateParams.deviceNumber) {
+            $scope.paging.deviceFilter = $stateParams.deviceNumber;
         }
 
         loadData();

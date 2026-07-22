@@ -85,6 +85,11 @@
             </ul>
         </li>
 
+        <tab active="act.ITAM" ng-if="hasPermission('plugin_itam_view')" ng-click="openTab('ITAM')">
+            <tab-heading localized-change-tracking>tab.itam</tab-heading>
+            <ng-include src="'app/components/plugins/itam/views/itam.html'" ng-if="activeTab === 'ITAM'"></ng-include>
+        </tab>
+
         <li class="dropdown" uib-dropdown ng-if="functionsPlugins.length > 0" ng-class="{'active': pluginsTabActive}">
             <a class="dropdown-toggle" uib-dropdown-toggle href="#">
                 <span localized-change-tracking>menu.functions</span><span class="caret"></span>

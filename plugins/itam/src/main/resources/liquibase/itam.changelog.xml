@@ -98,4 +98,37 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="plugin-itam-22.07.2026-14:00" author="claude" context="common">
+        <comment>Restrict itam permissions to admin only: revoke the explicit grants from every role.
+        The super-admin role bypasses permission checks entirely (SecurityContext.hasPermission /
+        auth.service.js), so the admin login keeps full access with no grant; every other role loses it
+        by default and can be granted access again via the Roles admin screen.</comment>
+        <sql>
+            DELETE FROM userRolePermissions
+            WHERE permissionId IN (
+                SELECT id FROM permissions
+                WHERE name IN ('plugin_itam_view', 'plugin_itam_create', 'plugin_itam_delete', 'plugin_itam_export')
+            );
+        </sql>
+        <rollback>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT r.id, p.id FROM userRoles r, permissions p
+                WHERE p.name IN ('plugin_itam_view', 'plugin_itam_create', 'plugin_itam_delete', 'plugin_itam_export');
+        </rollback>
+    </changeSet>
+
+    <changeSet id="plugin-itam-22.07.2026-14:05" author="claude" context="common">
+        <comment>Promote itam from the Functions dropdown to a top-level tab: nulling functionsViewTemplate
+        removes it from the Functions menu (built from plugins with a non-null functionsViewTemplate),
+        while the plugin stays registered so its JS module still lazy-loads and its REST API stays live.
+        The top-level tab is wired in content.html / app.js / tabs.controller.js.</comment>
+        <sql>
+            UPDATE plugins SET functionsViewTemplate = NULL WHERE identifier = 'itam';
+        </sql>
+        <rollback>
+            UPDATE plugins SET functionsViewTemplate = 'app/components/plugins/itam/views/itam.html'
+                WHERE identifier = 'itam';
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
