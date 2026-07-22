@@ -5,7 +5,6 @@ import com.hmdm.plugins.itam.persistence.domain.ItamLog;
 import com.hmdm.plugins.itam.rest.json.ItamLogFilter;
 import org.apache.ibatis.annotations.Param;
 
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -21,11 +20,9 @@ public interface ItamMapper {
 
     void insert(ItamLog log);
 
-    int softDelete(@Param("id") String id, @Param("userId") int userId, @Param("customerId") int customerId);
+    ItamLog findById(@Param("id") String id, @Param("customerId") int customerId);
 
-    List<ItamLog> findPurgeable(@Param("cutoff") Date cutoff);
-
-    void hardDeletePurged(@Param("cutoff") Date cutoff);
+    int hardDelete(@Param("id") String id, @Param("customerId") int customerId);
 
     List<DeviceLookupItem> searchDevices(@Param("customerId") int customerId, @Param("query") String query);
 

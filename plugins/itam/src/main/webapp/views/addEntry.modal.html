@@ -8,7 +8,7 @@
 
         <div class="form-group">
             <label localized>plugin.itam.field.device</label>
-            <input type="text" class="form-control" ng-model="selectedDeviceLabel"
+            <input type="text" id="itamDeviceInput" class="form-control" ng-model="selectedDeviceLabel"
                    localized-placeholder="plugin.itam.placeholder.device.search"
                    autocomplete="off"
                    typeahead="device for device in getDevices($viewValue)"

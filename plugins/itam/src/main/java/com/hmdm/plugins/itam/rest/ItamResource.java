@@ -190,7 +190,10 @@ public class ItamResource {
                     || request.getDeviceCondition() == null || request.getBatteryCondition() == null) {
                 return Response.ERROR("Missing required fields");
             }
-            if (pictureParts != null && pictureParts.size() > MAX_PICTURES) {
+            if (pictureParts == null || pictureParts.isEmpty()) {
+                return Response.ERROR("At least one picture is required");
+            }
+            if (pictureParts.size() > MAX_PICTURES) {
                 return Response.ERROR("A maximum of " + MAX_PICTURES + " pictures is allowed");
             }
 
@@ -224,9 +227,9 @@ public class ItamResource {
         }
     }
 
-    // ---------------------------------------------------------------- soft delete
+    // ---------------------------------------------------------------- delete (permanent)
 
-    @ApiOperation(value = "Soft-delete an ITAM log entry")
+    @ApiOperation(value = "Permanently delete an ITAM log entry and its picture files")
     @DELETE
     @Path("/private/logs/{id}")
     @Produces(MediaType.APPLICATION_JSON)
@@ -234,7 +237,18 @@ public class ItamResource {
         if (!SecurityContext.get().hasPermission("plugin_itam_delete")) {
             return Response.PERMISSION_DENIED();
         }
-        boolean deleted = itamDAO.softDelete(id);
-        return deleted ? Response.OK() : Response.OBJECT_NOT_FOUND_ERROR();
+        try {
+            List<String> pictures = itamDAO.hardDelete(id);
+            if (pictures == null) {
+                return Response.OBJECT_NOT_FOUND_ERROR();
+            }
+            for (String path : pictures) {
+                pictureStorage.delete(path);
+            }
+            return Response.OK();
+        } catch (Exception e) {
+            logger.error("Failed to delete ITAM log entry {}", id, e);
+            return Response.INTERNAL_ERROR();
+        }
     }
 }

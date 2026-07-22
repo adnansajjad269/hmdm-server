@@ -35,7 +35,7 @@
   "plugin.itam.field.batteryCondition": "Battery Condition",
   "plugin.itam.field.comments": "Comments",
   "plugin.itam.field.pictures": "Pictures",
-  "plugin.itam.hint.pictures.limit": "Up to 5 images, 5MB each (JPEG, PNG, WebP)",
+  "plugin.itam.hint.pictures.limit": "At least 1, up to 5 images, 5MB each (JPEG, PNG, WebP)",
 
   "plugin.itam.telemetry.title": "Live Device Telemetry",
   "plugin.itam.telemetry.model": "Model",
@@ -44,6 +44,8 @@
   "plugin.itam.telemetry.lastCheckIn": "Last Check-In",
 
   "plugin.itam.error.no.device": "Select a device first",
+  "plugin.itam.error.invalid.device": "Select a valid device from the list",
+  "plugin.itam.error.no.pictures": "Attach at least one picture",
   "plugin.itam.error.too.many.pictures": "A maximum of 5 pictures is allowed",
   "plugin.itam.error.picture.type": "Only JPEG, PNG, or WebP images are allowed",
   "plugin.itam.error.picture.size": "Each picture must be 5MB or smaller",

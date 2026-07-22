@@ -87,22 +87,16 @@
         )
     </insert>
 
-    <update id="softDelete">
-        UPDATE plugin_itam_log
-        SET deletedat = NOW(), deletedbyuserid = #{userId}
-        WHERE id = CAST(#{id} AS UUID) AND customerid = #{customerId} AND deletedat IS NULL
-    </update>
-
-    <select id="findPurgeable" resultMap="itamLogMap">
+    <select id="findById" resultMap="itamLogMap">
         SELECT l.*, d.number AS devicenumber, u.name AS loggedbyusername
         FROM plugin_itam_log l
         LEFT JOIN devices d ON d.id = l.deviceid
         LEFT JOIN users u ON u.id = l.loggedbyuserid
-        WHERE l.deletedat IS NOT NULL AND l.deletedat &lt;= #{cutoff}
+        WHERE l.id = CAST(#{id} AS UUID) AND l.customerid = #{customerId}
     </select>
 
-    <delete id="hardDeletePurged">
-        DELETE FROM plugin_itam_log WHERE deletedat IS NOT NULL AND deletedat &lt;= #{cutoff}
+    <delete id="hardDelete">
+        DELETE FROM plugin_itam_log WHERE id = CAST(#{id} AS UUID) AND customerid = #{customerId}
     </delete>
 
     <!--

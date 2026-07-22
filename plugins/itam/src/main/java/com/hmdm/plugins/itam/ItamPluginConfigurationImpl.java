@@ -6,7 +6,6 @@ import com.hmdm.plugin.PluginTaskModule;
 import com.hmdm.plugins.itam.guice.module.ItamLiquibaseModule;
 import com.hmdm.plugins.itam.guice.module.ItamPersistenceModule;
 import com.hmdm.plugins.itam.guice.module.ItamRestModule;
-import com.hmdm.plugins.itam.guice.module.ItamTaskModule;
 
 import javax.servlet.ServletContext;
 import java.util.ArrayList;
@@ -39,8 +38,7 @@ public class ItamPluginConfigurationImpl implements PluginConfiguration {
 
     @Override
     public Optional<List<Class<? extends PluginTaskModule>>> getTaskModules(ServletContext context) {
-        List<Class<? extends PluginTaskModule>> tasks = new ArrayList<>();
-        tasks.add(ItamTaskModule.class);
-        return Optional.of(tasks);
+        // No background tasks: ITAM entries are deleted permanently on request, with no retention window.
+        return Optional.empty();
     }
 }

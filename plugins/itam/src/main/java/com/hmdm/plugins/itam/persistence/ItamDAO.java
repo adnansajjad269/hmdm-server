@@ -10,7 +10,6 @@ import com.hmdm.security.SecurityContext;
 import org.mybatis.guice.transactional.Transactional;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 @Singleton
@@ -58,31 +57,24 @@ public class ItamDAO {
     }
 
     /**
-     * @return true if a matching, not-already-deleted row was found and soft-deleted.
+     * Permanently deletes a matching row (no retention) and returns its picture paths so the caller can
+     * remove the files from disk. Returns {@code null} if no matching row was found for the current
+     * customer, or an empty list if the row had no pictures.
      */
     @Transactional
-    public boolean softDelete(String id) {
+    public List<String> hardDelete(String id) {
         return SecurityContext.get().getCurrentUser()
-                .map(user -> mapper.softDelete(id, user.getId(), user.getCustomerId()) > 0)
-                .orElse(false);
-    }
-
-    /**
-     * Hard-deletes rows soft-deleted more than {@code retentionDays} ago, returning the picture paths
-     * that need removing from disk (caller's responsibility -- this DAO has no filesystem access).
-     */
-    @Transactional
-    public List<String> purge(int retentionDays) {
-        Date cutoff = new Date(System.currentTimeMillis() - retentionDays * 24L * 60 * 60 * 1000);
-        List<ItamLog> purgeable = mapper.findPurgeable(cutoff);
-        List<String> allPictures = new ArrayList<>();
-        for (ItamLog log : purgeable) {
-            if (log.getPictures() != null) {
-                allPictures.addAll(log.getPictures());
-            }
-        }
-        mapper.hardDeletePurged(cutoff);
-        return allPictures;
+                .map(user -> {
+                    ItamLog log = mapper.findById(id, user.getCustomerId());
+                    if (log == null) {
+                        return null;
+                    }
+                    List<String> pictures = log.getPictures() != null
+                            ? new ArrayList<>(log.getPictures()) : new ArrayList<String>();
+                    mapper.hardDelete(id, user.getCustomerId());
+                    return pictures;
+                })
+                .orElse(null);
     }
 
     public List<DeviceLookupItem> searchDevices(String query) {

@@ -131,7 +131,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             });
         };
     })
-    .controller('PluginItamAddEntryController', function ($scope, $uibModalInstance, $http, $q,
+    .controller('PluginItamAddEntryController', function ($scope, $uibModalInstance, $http, $q, $timeout,
                                                             pluginItamService, localization) {
         $scope.saving = false;
         $scope.errorMessage = undefined;
@@ -156,6 +156,9 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
 
         var telemetryCanceller = null;
         var latestOwnerAtSelection = null;
+        // The device.number of the currently selected valid device; kept in sync so we can reject
+        // free-typed values that don't correspond to a real device from the list.
+        var selectedDeviceNumber = null;
 
         $scope.getDevices = function (val) {
             return pluginItamService.searchDevices({query: val}).$promise.then(function (response) {
@@ -177,6 +180,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                 return;
             }
             $scope.entry.deviceId = device.id;
+            selectedDeviceNumber = device.number;
 
             // Cancel any in-flight telemetry/latest-log requests for a previously selected device
             // so a fast switch can't let a stale response land after a newer one.
@@ -201,15 +205,29 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                         $scope.entry.ownerName = latest.ownerName || '';
                         $scope.entry.ownershipDate = latest.ownershipDate ? new Date(latest.ownershipDate) : new Date();
                         $scope.dateLocked = !!latestOwnerAtSelection;
+                        // Pre-populate condition fields from the latest entry; they stay editable.
+                        $scope.entry.deviceCondition = latest.deviceCondition || 'GOOD';
+                        $scope.entry.batteryCondition = latest.batteryCondition || 'GOOD';
                     } else {
                         // State 3: no history for this device
                         latestOwnerAtSelection = null;
                         $scope.entry.ownerName = '';
                         $scope.entry.ownershipDate = new Date();
                         $scope.dateLocked = false;
+                        $scope.entry.deviceCondition = 'GOOD';
+                        $scope.entry.batteryCondition = 'GOOD';
                     }
                 });
         };
+
+        // Invalidate the selected device as soon as the text is edited away from a real device number,
+        // so only a value chosen from the list (or typed to exactly match one) counts as valid.
+        $scope.$watch('selectedDeviceLabel', function (newVal) {
+            if (newVal !== selectedDeviceNumber) {
+                $scope.entry.deviceId = null;
+                $scope.telemetry = null;
+            }
+        });
 
         // State 2: owner edited away from the pre-populated value -> unlock + default to today
         $scope.$watch('entry.ownerName', function (newVal, oldVal) {
@@ -260,8 +278,19 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
 
         $scope.save = function () {
             $scope.errorMessage = undefined;
-            if (!$scope.entry.deviceId) {
-                $scope.errorMessage = localization.localize('plugin.itam.error.no.device');
+            // Only a device chosen from the list (deviceId set, label still matching it) is accepted.
+            if (!$scope.entry.deviceId || $scope.selectedDeviceLabel !== selectedDeviceNumber) {
+                $scope.errorMessage = localization.localize('plugin.itam.error.invalid.device');
+                $timeout(function () {
+                    var el = document.getElementById('itamDeviceInput');
+                    if (el) {
+                        el.focus();
+                    }
+                });
+                return;
+            }
+            if (!$scope.pictures || $scope.pictures.length < 1) {
+                $scope.errorMessage = localization.localize('plugin.itam.error.no.pictures');
                 return;
             }
 
