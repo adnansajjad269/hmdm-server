@@ -172,15 +172,19 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             });
         };
 
-        $scope.onDeviceSelected = function () {
-            var device = ($scope.deviceCandidates || []).filter(function (d) {
-                return d.number === $scope.selectedDeviceLabel;
-            })[0];
-            if (!device) {
-                return;
+        function focusDeviceInput() {
+            var el = document.getElementById('itamDeviceInput');
+            if (el) {
+                el.focus();
             }
+        }
+
+        // Applies a device chosen from the list (or resolved from a scanned barcode): marks it as the
+        // valid selection and loads its live telemetry + latest-entry pre-population.
+        function applySelectedDevice(device) {
             $scope.entry.deviceId = device.id;
             selectedDeviceNumber = device.number;
+            $scope.selectedDeviceLabel = device.number;
 
             // Cancel any in-flight telemetry/latest-log requests for a previously selected device
             // so a fast switch can't let a stale response land after a newer one.
@@ -218,7 +222,137 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                         $scope.entry.batteryCondition = 'GOOD';
                     }
                 });
+        }
+
+        $scope.onDeviceSelected = function () {
+            var device = ($scope.deviceCandidates || []).filter(function (d) {
+                return d.number === $scope.selectedDeviceLabel;
+            })[0];
+            if (!device) {
+                return;
+            }
+            applySelectedDevice(device);
         };
+
+        // Resolves a raw device number (typically from a scanned barcode) to a real device.
+        function resolveDeviceByNumber(num) {
+            pluginItamService.searchDevices({query: num}).$promise.then(function (response) {
+                var device = null;
+                if (response.status === 'OK') {
+                    device = (response.data || []).filter(function (d) {
+                        return d.number === num;
+                    })[0];
+                }
+                if (device) {
+                    applySelectedDevice(device);
+                } else {
+                    $scope.entry.deviceId = null;
+                    $scope.errorMessage = localization.localize('plugin.itam.error.device.not.found');
+                    $timeout(focusDeviceInput);
+                }
+            });
+        }
+
+        // ------------------------------------------------------------------ barcode scanning
+        // Live camera scan using the browser-native BarcodeDetector (Chrome/Edge/Android). Requires an
+        // HTTPS origin for camera access; on plain HTTP getUserMedia is rejected and we surface an error.
+        var scanStream = null;
+        var scanDetector = null;
+        var scanRAF = null;
+        var scanActive = false;
+
+        $scope.scanning = false;
+
+        $scope.startScan = function () {
+            $scope.errorMessage = undefined;
+            if (typeof window.BarcodeDetector === 'undefined') {
+                $scope.errorMessage = localization.localize('plugin.itam.error.scan.unsupported');
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
+                return;
+            }
+            $scope.scanning = true;
+            // Let the <video> element render before wiring the stream to it.
+            $timeout(function () {
+                navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}})
+                    .then(function (stream) {
+                        scanStream = stream;
+                        var video = document.getElementById('itamScanVideo');
+                        video.srcObject = stream;
+                        video.setAttribute('playsinline', 'true');
+                        video.play();
+                        try {
+                            scanDetector = new window.BarcodeDetector({
+                                formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e',
+                                    'itf', 'codabar', 'qr_code', 'data_matrix']
+                            });
+                        } catch (e) {
+                            scanDetector = new window.BarcodeDetector();
+                        }
+                        scanActive = true;
+                        detectLoop(video);
+                    })
+                    .catch(function () {
+                        $scope.$applyAsync(function () {
+                            $scope.scanning = false;
+                            $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
+                        });
+                    });
+            });
+        };
+
+        function detectLoop(video) {
+            if (!scanActive) {
+                return;
+            }
+            scanDetector.detect(video).then(function (codes) {
+                if (!scanActive) {
+                    return;
+                }
+                if (codes && codes.length > 0 && codes[0].rawValue) {
+                    var value = ('' + codes[0].rawValue).trim();
+                    $scope.$applyAsync(function () {
+                        $scope.stopScan();
+                        $scope.selectedDeviceLabel = value;
+                        resolveDeviceByNumber(value);
+                    });
+                } else {
+                    scanRAF = requestAnimationFrame(function () { detectLoop(video); });
+                }
+            }).catch(function () {
+                // Ignore transient decode errors and keep scanning.
+                if (scanActive) {
+                    scanRAF = requestAnimationFrame(function () { detectLoop(video); });
+                }
+            });
+        }
+
+        $scope.stopScan = function () {
+            scanActive = false;
+            if (scanRAF) {
+                cancelAnimationFrame(scanRAF);
+                scanRAF = null;
+            }
+            if (scanStream) {
+                scanStream.getTracks().forEach(function (t) { t.stop(); });
+                scanStream = null;
+            }
+            $scope.scanning = false;
+        };
+
+        // ------------------------------------------------------------------ camera photo capture
+        $scope.triggerCapture = function () {
+            var el = document.getElementById('itamCaptureInput');
+            if (el) {
+                el.click();
+            }
+        };
+
+        $scope.$on('$destroy', function () {
+            $scope.stopScan();
+        });
 
         // Invalidate the selected device as soon as the text is edited away from a real device number,
         // so only a value chosen from the list (or typed to exactly match one) counts as valid.
@@ -273,10 +407,12 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
         };
 
         $scope.closeModal = function () {
+            $scope.stopScan();
             $uibModalInstance.dismiss();
         };
 
         $scope.save = function () {
+            $scope.stopScan();
             $scope.errorMessage = undefined;
             // Only a device chosen from the list (deviceId set, label still matching it) is accepted.
             if (!$scope.entry.deviceId || $scope.selectedDeviceLabel !== selectedDeviceNumber) {

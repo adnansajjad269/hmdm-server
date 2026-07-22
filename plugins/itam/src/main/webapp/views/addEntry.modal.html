@@ -8,12 +8,24 @@
 
         <div class="form-group">
             <label localized>plugin.itam.field.device</label>
-            <input type="text" id="itamDeviceInput" class="form-control" ng-model="selectedDeviceLabel"
-                   localized-placeholder="plugin.itam.placeholder.device.search"
-                   autocomplete="off"
-                   typeahead="device for device in getDevices($viewValue)"
-                   typeahead-wait-ms="300"
-                   typeahead-on-select="onDeviceSelected()">
+            <div class="input-group">
+                <input type="text" id="itamDeviceInput" class="form-control" ng-model="selectedDeviceLabel"
+                       localized-placeholder="plugin.itam.placeholder.device.search"
+                       autocomplete="off"
+                       typeahead="device for device in getDevices($viewValue)"
+                       typeahead-wait-ms="300"
+                       typeahead-on-select="onDeviceSelected()">
+                <span class="input-group-btn">
+                    <button type="button" class="btn btn-default" ng-hide="scanning" ng-click="startScan()"
+                            localized>plugin.itam.button.scan</button>
+                    <button type="button" class="btn btn-default" ng-show="scanning" ng-click="stopScan()"
+                            localized>plugin.itam.button.scan.cancel</button>
+                </span>
+            </div>
+            <div ng-if="scanning" style="margin-top:8px;">
+                <video id="itamScanVideo" style="width:100%; max-height:300px; background:#000;" muted autoplay playsinline></video>
+                <div class="help-block" localized>plugin.itam.hint.scan</div>
+            </div>
         </div>
 
         <div class="alert alert-info" ng-if="telemetry">
@@ -66,8 +78,14 @@
 
         <div class="form-group">
             <label localized>plugin.itam.field.pictures</label>
-            <input type="file" multiple accept="image/jpeg,image/png,image/webp" capture="environment"
-                   onchange="angular.element(this).scope().onFilesSelected(this.files); angular.element(this).scope().$apply();">
+            <div>
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp"
+                       onchange="angular.element(this).scope().onFilesSelected(this.files); angular.element(this).scope().$apply();">
+                <button type="button" class="btn btn-default btn-sm" ng-click="triggerCapture()"
+                        localized>plugin.itam.button.capture.photo</button>
+                <input type="file" id="itamCaptureInput" accept="image/*" capture="environment" style="display:none;"
+                       onchange="angular.element(this).scope().onFilesSelected(this.files); angular.element(this).scope().$apply(); this.value=null;">
+            </div>
             <div class="help-block" localized>plugin.itam.hint.pictures.limit</div>
             <ul class="list-unstyled">
                 <li ng-repeat="p in pictures track by $index">

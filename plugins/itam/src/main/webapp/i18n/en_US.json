@@ -4,6 +4,10 @@
   "plugin.itam.tab.title": "IT Asset Management Logs",
 
   "plugin.itam.button.add.entry": "Add Entry",
+  "plugin.itam.button.scan": "Scan",
+  "plugin.itam.button.scan.cancel": "Cancel scan",
+  "plugin.itam.button.capture.photo": "Capture Photo",
+  "plugin.itam.hint.scan": "Point the camera at the device barcode.",
   "plugin.itam.confirm.delete": "Delete this ITAM log entry?",
   "plugin.itam.notfound.logs": "No ITAM log entries found. Try a different filter.",
 
@@ -46,6 +50,9 @@
   "plugin.itam.error.no.device": "Select a device first",
   "plugin.itam.error.invalid.device": "Select a valid device from the list",
   "plugin.itam.error.no.pictures": "Attach at least one picture",
+  "plugin.itam.error.device.not.found": "No device matches the scanned number",
+  "plugin.itam.error.scan.unsupported": "Barcode scanning isn't supported by this browser. Use Chrome, Edge, or Android, or enter the number manually.",
+  "plugin.itam.error.scan.camera": "Couldn't access the camera. Grant camera permission and open the panel over HTTPS.",
   "plugin.itam.error.too.many.pictures": "A maximum of 5 pictures is allowed",
   "plugin.itam.error.picture.type": "Only JPEG, PNG, or WebP images are allowed",
   "plugin.itam.error.picture.size": "Each picture must be 5MB or smaller",
