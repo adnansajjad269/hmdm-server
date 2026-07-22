@@ -194,4 +194,19 @@ public class DeviceView {
     public DeviceInfoView getInfo() {
         return deviceInfo;
     }
+
+    @ApiModelProperty("Latest WiFi SSID reported by the device, parsed from device log")
+    public String getWifiSsid() {
+        return device.getWifiSsid();
+    }
+
+    @ApiModelProperty("Latest WiFi BSSID reported by the device, parsed from device log")
+    public String getWifiBssid() {
+        return device.getWifiBssid();
+    }
+
+    @ApiModelProperty("Latest known location of the device, parsed from device log")
+    public String getLocation() {
+        return device.getLocation();
+    }
 }
