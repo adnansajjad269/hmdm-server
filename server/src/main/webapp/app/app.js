@@ -141,6 +141,17 @@ angular.module('headwind-kiosk',
                 }
 
             })
+            .state('itam', {
+                url: '/itam?deviceNumber',
+                templateUrl: 'app/components/main/view/content.html',
+                controller: 'TabController',
+                ncyBreadcrumb: {
+                    label: '{{"breadcrumb.itam" | localize}}' //label to show in breadcrumbs
+                },
+                resolve: {
+                    openTab: function () {return "ITAM"}
+                }
+            })
             .state('applications', {
                 url: '/applications',
                 templateUrl: 'app/components/main/view/content.html',

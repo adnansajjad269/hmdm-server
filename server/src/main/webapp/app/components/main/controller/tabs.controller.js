@@ -9,6 +9,7 @@ angular.module('headwind-kiosk')
             SUMMARY: 'summary',
             DEVICES: 'main',
             ANALYTICS: 'analytics',
+            ITAM: 'itam',
             APPS: 'applications',
             CONFS: 'configurations',
             FILES: 'files',

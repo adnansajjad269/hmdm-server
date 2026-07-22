@@ -771,6 +771,7 @@ document.localization ['en_US'] = {
 
     'tab.devices': 'Devices',
     'tab.analytics': 'Analytics',
+    'tab.itam': 'ITAM',
     'tab.applications': 'Applications',
     'tab.configurations': 'Configurations',
     'tab.files': 'Files',
@@ -942,6 +943,7 @@ document.localization ['en_US'] = {
     'breadcrumb.summary': 'Summary',
     'breadcrumb.devices': 'Devices',
     'breadcrumb.analytics': 'Analytics',
+    'breadcrumb.itam': 'ITAM',
     'breadcrumb.applications': 'Applications',
     'breadcrumb.configurations': 'Configurations',
     'breadcrumb.files': 'Files',

@@ -985,6 +985,10 @@ angular.module('headwind-kiosk')
             $state.transitionTo('configEditor', {"id": configuration.id});
         };
 
+        $scope.openItamForDevice = function (device) {
+            $state.transitionTo('itam', {"deviceNumber": device.number});
+        };
+
         $scope.manageApplicationSettings = function (device) {
             var modalInstance = $modal.open({
                 templateUrl: 'app/components/main/view/modal/device.applicationSettings.html',

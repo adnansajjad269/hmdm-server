@@ -31,6 +31,11 @@
             <ng-include src="'app/components/main/view/files.html'" ng-if="activeTab === 'FILES'"></ng-include>
         </tab>
 
+        <tab active="act.ITAM" ng-if="hasPermission('plugin_itam_view')" ng-click="openTab('ITAM')">
+            <tab-heading localized-change-tracking>tab.itam</tab-heading>
+            <ng-include src="'app/components/plugins/itam/views/itam.html'" ng-if="activeTab === 'ITAM'"></ng-include>
+        </tab>
+
         <li ng-if="hasPermission('settings')"
                 class="dropdown" uib-dropdown ng-class="{'active': settingsTabActive}">
             <a class="dropdown-toggle" uib-dropdown-toggle href="#"><span localized-change-tracking>menu.settings</span><span class="caret"></span></a>

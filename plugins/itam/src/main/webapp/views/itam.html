@@ -1,0 +1,110 @@
+<!-- Localization completed -->
+<div class="width-1000" ng-controller="PluginItamTabController">
+    <div class="text-center">
+        <h4 localized>plugin.itam.tab.title</h4>
+    </div>
+
+    <div class='form-group'>
+        <div ng-show='errorMessage' class='error'><span>{{errorMessage}}</span></div>
+    </div>
+
+    <div class="form-group">
+        <div class="col-sm-2">
+            <input type="text" ng-model="paging.deviceFilter" ng-enter="search()"
+                   localized-placeholder="search.placeholder.device" class="form-control">
+        </div>
+        <div class="col-sm-2">
+            <input type="text" ng-model="paging.ownerName" ng-enter="search()"
+                   localized-placeholder="plugin.itam.placeholder.owner" class="form-control">
+        </div>
+        <div class="col-sm-2">
+            <select ng-model="paging.assetStatus" class="form-control">
+                <option value="" localized>plugin.itam.filter.any.status</option>
+                <option ng-repeat="s in assetStatuses" value="{{s}}">{{s}}</option>
+            </select>
+        </div>
+        <div class="col-sm-2">
+            <select ng-model="paging.deviceCondition" class="form-control">
+                <option value="" localized>plugin.itam.filter.any.device.condition</option>
+                <option ng-repeat="c in conditions" value="{{c}}">{{c}}</option>
+            </select>
+        </div>
+        <div class="col-sm-2">
+            <select ng-model="paging.batteryCondition" class="form-control">
+                <option value="" localized>plugin.itam.filter.any.battery.condition</option>
+                <option ng-repeat="c in conditions" value="{{c}}">{{c}}</option>
+            </select>
+        </div>
+        <div class="col-sm-2 text-right">
+            <button type="button" class="btn btn-default" ng-click="search()" localized>button.search</button>
+        </div>
+    </div>
+
+    <br/><br/>
+
+    <div class="form-group">
+        <div class="col-sm-8">
+            <button type="button" class="btn btn-primary" ng-if="hasPermission('plugin_itam_create')"
+                    ng-click="addEntry()" localized>plugin.itam.button.add.entry</button>
+        </div>
+        <div class="col-sm-4 text-right">
+            <button type="button" class="btn btn-default" ng-if="hasPermission('plugin_itam_export')"
+                    ng-click="exportCsv()" localized>button.export</button>
+        </div>
+    </div>
+
+    <br/><br/><br/>
+
+    <div class="text-center" ng-if="paging.totalItems > paging.pageSize">
+        <pagination boundary-links="true" class="pagination-sm" max-size="3"
+                    ng-model="paging.pageNum" total-items="paging.totalItems"
+                    items-per-page="paging.pageSize"
+                    previous-text="&lsaquo;" next-text="&rsaquo;" first-text="&laquo;" last-text="&raquo;"></pagination>
+    </div>
+
+    <table ng-if="logs && logs.length > 0" class="table">
+        <thead>
+        <tr>
+            <th localized>table.heading.plugin.itam.device</th>
+            <th localized>table.heading.plugin.itam.owner</th>
+            <th localized>table.heading.plugin.itam.status</th>
+            <th localized>table.heading.plugin.itam.ownershipDate</th>
+            <th localized>table.heading.plugin.itam.deviceCondition</th>
+            <th localized>table.heading.plugin.itam.batteryCondition</th>
+            <th localized>table.heading.plugin.itam.comments</th>
+            <th localized>table.heading.plugin.itam.pictures</th>
+            <th localized>table.heading.plugin.itam.loggedBy</th>
+            <th ng-if="hasPermission('plugin_itam_delete')" localized>table.heading.plugin.itam.actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr ng-repeat="log in logs">
+            <td>{{log.deviceNumber}}</td>
+            <td>{{log.ownerName || 'N/A'}}</td>
+            <td>{{log.assetStatus}}</td>
+            <td>{{log.ownershipDate | date:'yyyy-MM-dd'}}</td>
+            <td>{{log.deviceCondition}}</td>
+            <td>{{log.batteryCondition}}</td>
+            <td>{{log.comments}}</td>
+            <td>
+                <a ng-repeat="p in log.pictures" ng-href="files/{{p}}" target="_blank">
+                    <img ng-src="files/{{p}}" style="max-height:40px;max-width:40px;margin-right:4px" />
+                </a>
+            </td>
+            <td>{{log.loggedByUserName}}</td>
+            <td ng-if="hasPermission('plugin_itam_delete')">
+                <button type="button" class="btn btn-xs btn-danger" ng-click="removeEntry(log)" localized>button.delete</button>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div ng-if="logs && logs.length === 0" class="center" localized>plugin.itam.notfound.logs</div>
+
+    <div class="text-center" ng-if="paging.totalItems > paging.pageSize">
+        <pagination boundary-links="true" class="pagination-sm" max-size="3"
+                    ng-model="paging.pageNum" total-items="paging.totalItems"
+                    items-per-page="paging.pageSize"
+                    previous-text="&lsaquo;" next-text="&rsaquo;" first-text="&laquo;" last-text="&raquo;"></pagination>
+    </div>
+</div>

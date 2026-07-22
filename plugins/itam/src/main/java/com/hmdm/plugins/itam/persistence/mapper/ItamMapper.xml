@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hmdm.plugins.itam.persistence.mapper.ItamMapper">
+
+    <resultMap id="itamLogMap" type="com.hmdm.plugins.itam.persistence.domain.ItamLog">
+        <id property="id" column="id"/>
+        <result property="customerId" column="customerid"/>
+        <result property="deviceId" column="deviceid"/>
+        <result property="deviceNumber" column="devicenumber"/>
+        <result property="ownerName" column="ownername"/>
+        <result property="ownershipDate" column="ownershipdate"/>
+        <result property="assetStatus" column="assetstatus"/>
+        <result property="deviceCondition" column="devicecondition"/>
+        <result property="batteryCondition" column="batterycondition"/>
+        <result property="comments" column="comments"/>
+        <result property="pictures" column="pictures"
+                typeHandler="com.hmdm.plugins.itam.persistence.typehandler.JsonStringListTypeHandler"/>
+        <result property="loggedByUserId" column="loggedbyuserid"/>
+        <result property="loggedByUserName" column="loggedbyusername"/>
+        <result property="deletedByUserId" column="deletedbyuserid"/>
+        <result property="createdAt" column="createdat"/>
+        <result property="deletedAt" column="deletedat"/>
+    </resultMap>
+
+    <resultMap id="deviceLookupMap" type="com.hmdm.plugins.itam.persistence.domain.DeviceLookupItem">
+        <id property="id" column="id"/>
+        <result property="number" column="number"/>
+        <result property="model" column="model"/>
+        <result property="serial" column="serial"/>
+        <result property="androidVersion" column="androidversion"/>
+        <result property="lastCheckIn" column="lastcheckin"/>
+    </resultMap>
+
+    <sql id="listFilter">
+        <where>
+            l.customerid = #{customerId}
+            AND l.deletedat IS NULL
+            <if test="deviceId != null">AND l.deviceid = #{deviceId}</if>
+            <if test="deviceNumber != null and deviceNumber != ''">AND d.number ILIKE '%' || #{deviceNumber} || '%'</if>
+            <if test="ownerName != null and ownerName != ''">AND l.ownername ILIKE '%' || #{ownerName} || '%'</if>
+            <if test="assetStatus != null and assetStatus != ''">AND l.assetstatus = #{assetStatus}</if>
+            <if test="deviceCondition != null and deviceCondition != ''">AND l.devicecondition = #{deviceCondition}</if>
+            <if test="batteryCondition != null and batteryCondition != ''">AND l.batterycondition = #{batteryCondition}</if>
+            <if test="dateFrom != null">AND l.createdat >= #{dateFrom}</if>
+            <if test="dateTo != null">AND l.createdat &lt;= #{dateTo}</if>
+        </where>
+    </sql>
+
+    <select id="findAll" resultMap="itamLogMap">
+        SELECT l.*, d.number AS devicenumber, u.name AS loggedbyusername
+        FROM plugin_itam_log l
+        LEFT JOIN devices d ON d.id = l.deviceid
+        LEFT JOIN users u ON u.id = l.loggedbyuserid
+        <include refid="listFilter"/>
+        ORDER BY l.createdat DESC
+        <if test="pageSize != null and pageNum != null">
+            LIMIT #{pageSize} OFFSET (#{pageNum} - 1) * #{pageSize}
+        </if>
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT count(*)
+        FROM plugin_itam_log l
+        LEFT JOIN devices d ON d.id = l.deviceid
+        <include refid="listFilter"/>
+    </select>
+
+    <select id="findLatestByDevice" resultMap="itamLogMap">
+        SELECT l.*, d.number AS devicenumber, u.name AS loggedbyusername
+        FROM plugin_itam_log l
+        LEFT JOIN devices d ON d.id = l.deviceid
+        LEFT JOIN users u ON u.id = l.loggedbyuserid
+        WHERE l.deviceid = #{deviceId} AND l.customerid = #{customerId} AND l.deletedat IS NULL
+        ORDER BY l.createdat DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insert">
+        INSERT INTO plugin_itam_log (
+            id, customerid, deviceid, ownername, ownershipdate, assetstatus,
+            devicecondition, batterycondition, comments, pictures, loggedbyuserid, createdat
+        ) VALUES (
+            gen_random_uuid(), #{customerId}, #{deviceId}, #{ownerName}, #{ownershipDate}, #{assetStatus},
+            #{deviceCondition}, #{batteryCondition}, #{comments},
+            #{pictures, typeHandler=com.hmdm.plugins.itam.persistence.typehandler.JsonStringListTypeHandler},
+            #{loggedByUserId}, NOW()
+        )
+    </insert>
+
+    <select id="findById" resultMap="itamLogMap">
+        SELECT l.*, d.number AS devicenumber, u.name AS loggedbyusername
+        FROM plugin_itam_log l
+        LEFT JOIN devices d ON d.id = l.deviceid
+        LEFT JOIN users u ON u.id = l.loggedbyuserid
+        WHERE l.id = CAST(#{id} AS UUID) AND l.customerid = #{customerId}
+    </select>
+
+    <delete id="hardDelete">
+        DELETE FROM plugin_itam_log WHERE id = CAST(#{id} AS UUID) AND customerid = #{customerId}
+    </delete>
+
+    <!--
+    Model/serial/OS version/last-check-in aren't columns; they're read live from devices.info, which this
+    codebase stores as either json text or jsonb depending on install (see HMDM-STATS-README.md); casting
+    to ::json handles both. lastupdate is epoch-millis (this app's convention), hence the /1000.0 conversion.
+    -->
+    <select id="searchDevices" resultMap="deviceLookupMap">
+        SELECT
+            d.id, d.number,
+            d.info::json ->> 'model' AS model,
+            COALESCE(d.info::json ->> 'serial', d.imei) AS serial,
+            d.info::json ->> 'androidVersion' AS androidversion,
+            to_timestamp(d.lastupdate / 1000.0) AS lastcheckin
+        FROM devices d
+        WHERE d.customerid = #{customerId}
+          AND (
+            d.number ILIKE '%' || #{query} || '%'
+            OR d.imei ILIKE '%' || #{query} || '%'
+            OR d.info::json ->> 'serial' ILIKE '%' || #{query} || '%'
+          )
+        ORDER BY d.number
+        LIMIT 20
+    </select>
+
+    <select id="getDeviceTelemetry" resultMap="deviceLookupMap">
+        SELECT
+            d.id, d.number,
+            d.info::json ->> 'model' AS model,
+            COALESCE(d.info::json ->> 'serial', d.imei) AS serial,
+            d.info::json ->> 'androidVersion' AS androidversion,
+            to_timestamp(d.lastupdate / 1000.0) AS lastcheckin
+        FROM devices d
+        WHERE d.id = #{deviceId} AND d.customerid = #{customerId}
+    </select>
+
+</mapper>

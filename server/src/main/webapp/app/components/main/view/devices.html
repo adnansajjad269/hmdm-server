@@ -368,7 +368,10 @@
             </td>
             <td ng-if='(device.lastUpdateDate > 0) && settings.columnDisplayedDeviceDate'>{{device.lastUpdateDate|date:dateFormat}}</td>
             <td ng-if='(device.lastUpdateDate <= 0 || !device.lastUpdateDate) && settings.columnDisplayedDeviceDate' localized>devices.date.unknown</td>
-            <td ng-if="settings.columnDisplayedDeviceNumber"><span>{{device.number}}</span></td>
+            <td ng-if="settings.columnDisplayedDeviceNumber && hasPermission('plugin_itam_view')">
+                <a class="action-link" ng-click="openItamForDevice(device)">{{device.number}}</a>
+            </td>
+            <td ng-if="settings.columnDisplayedDeviceNumber && !hasPermission('plugin_itam_view')"><span>{{device.number}}</span></td>
             <td ng-if="settings.columnDisplayedDeviceImei">
                 <span title="{{device.imeiTooltip}}" class="{{device.imeiTooltipClass}}">{{device.displayedIMEI}}</span>
             </td>
