@@ -107,7 +107,7 @@
 
     <!--
     Model/serial/OS version/last-check-in aren't columns; they're read live from devices.info, which this
-    codebase stores as either json text or jsonb depending on install (see HMDM-STATS-README.md) -- casting
+    codebase stores as either json text or jsonb depending on install (see HMDM-STATS-README.md); casting
     to ::json handles both. lastupdate is epoch-millis (this app's convention), hence the /1000.0 conversion.
     -->
     <select id="searchDevices" resultMap="deviceLookupMap">
