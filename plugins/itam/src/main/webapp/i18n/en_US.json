@@ -7,6 +7,7 @@
   "plugin.itam.button.scan": "Scan",
   "plugin.itam.button.scan.cancel": "Cancel scan",
   "plugin.itam.button.capture.photo": "Capture Photo",
+  "plugin.itam.button.take.photo": "Take Photo",
   "plugin.itam.hint.scan": "Point the camera at the device barcode.",
   "plugin.itam.confirm.delete": "Delete this ITAM log entry?",
   "plugin.itam.notfound.logs": "No ITAM log entries found. Try a different filter.",

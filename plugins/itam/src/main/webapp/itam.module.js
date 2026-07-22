@@ -343,15 +343,69 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
         };
 
         // ------------------------------------------------------------------ camera photo capture
-        $scope.triggerCapture = function () {
-            var el = document.getElementById('itamCaptureInput');
-            if (el) {
-                el.click();
+        // In-page camera (getUserMedia) with a live preview + shutter, so it works inside the website
+        // rather than handing off to a native file/camera picker. Also requires an HTTPS origin.
+        var captureStream = null;
+
+        $scope.capturing = false;
+
+        $scope.startCapture = function () {
+            $scope.errorMessage = undefined;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
+                return;
             }
+            $scope.capturing = true;
+            $timeout(function () {
+                navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}})
+                    .then(function (stream) {
+                        captureStream = stream;
+                        var video = document.getElementById('itamCaptureVideo');
+                        video.srcObject = stream;
+                        video.setAttribute('playsinline', 'true');
+                        video.play();
+                    })
+                    .catch(function () {
+                        $scope.$applyAsync(function () {
+                            $scope.capturing = false;
+                            $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
+                        });
+                    });
+            });
+        };
+
+        $scope.takePhoto = function () {
+            var video = document.getElementById('itamCaptureVideo');
+            if (!video || !video.videoWidth) {
+                return;
+            }
+            var canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(function (blob) {
+                if (!blob) {
+                    return;
+                }
+                var file = new File([blob], 'capture_' + Date.now() + '.jpg', {type: 'image/jpeg'});
+                $scope.$applyAsync(function () {
+                    $scope.stopCapture();
+                    $scope.onFilesSelected([file]);
+                });
+            }, 'image/jpeg', 0.9);
+        };
+
+        $scope.stopCapture = function () {
+            if (captureStream) {
+                captureStream.getTracks().forEach(function (t) { t.stop(); });
+                captureStream = null;
+            }
+            $scope.capturing = false;
         };
 
         $scope.$on('$destroy', function () {
             $scope.stopScan();
+            $scope.stopCapture();
         });
 
         // Invalidate the selected device as soon as the text is edited away from a real device number,
@@ -408,11 +462,13 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
 
         $scope.closeModal = function () {
             $scope.stopScan();
+            $scope.stopCapture();
             $uibModalInstance.dismiss();
         };
 
         $scope.save = function () {
             $scope.stopScan();
+            $scope.stopCapture();
             $scope.errorMessage = undefined;
             // Only a device chosen from the list (deviceId set, label still matching it) is accepted.
             if (!$scope.entry.deviceId || $scope.selectedDeviceLabel !== selectedDeviceNumber) {
