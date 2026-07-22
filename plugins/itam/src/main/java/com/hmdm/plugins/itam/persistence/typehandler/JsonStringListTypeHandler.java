@@ -1,4 +1,4 @@
-package com.hmdm.plugins.itam.persistence.mapper;
+package com.hmdm.plugins.itam.persistence.typehandler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.type.BaseTypeHandler;

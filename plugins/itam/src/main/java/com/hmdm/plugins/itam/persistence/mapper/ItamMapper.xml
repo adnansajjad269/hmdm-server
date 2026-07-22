@@ -14,7 +14,7 @@
         <result property="batteryCondition" column="batterycondition"/>
         <result property="comments" column="comments"/>
         <result property="pictures" column="pictures"
-                typeHandler="com.hmdm.plugins.itam.persistence.mapper.JsonStringListTypeHandler"/>
+                typeHandler="com.hmdm.plugins.itam.persistence.typehandler.JsonStringListTypeHandler"/>
         <result property="loggedByUserId" column="loggedbyuserid"/>
         <result property="loggedByUserName" column="loggedbyusername"/>
         <result property="deletedByUserId" column="deletedbyuserid"/>
@@ -82,7 +82,7 @@
         ) VALUES (
             gen_random_uuid(), #{customerId}, #{deviceId}, #{ownerName}, #{ownershipDate}, #{assetStatus},
             #{deviceCondition}, #{batteryCondition}, #{comments},
-            #{pictures, typeHandler=com.hmdm.plugins.itam.persistence.mapper.JsonStringListTypeHandler},
+            #{pictures, typeHandler=com.hmdm.plugins.itam.persistence.typehandler.JsonStringListTypeHandler},
             #{loggedByUserId}, NOW()
         )
     </insert>
