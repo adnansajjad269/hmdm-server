@@ -144,9 +144,13 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
         };
     })
     .controller('PluginItamAddEntryController', function ($scope, $uibModalInstance, $http, $q, $timeout,
-                                                            pluginItamService, localization) {
+                                                            pluginItamService, localization, authService) {
         $scope.saving = false;
         $scope.errorMessage = undefined;
+
+        // Only users with delete permission may type a device number by hand; everyone else must scan
+        // a barcode, so an unauthorized/mistyped device number can't be entered into a log entry.
+        $scope.canTypeDevice = authService.hasPermission('plugin_itam_delete');
 
         $scope.entry = {
             deviceId: null,
@@ -468,6 +472,11 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
 
         $scope.startCapture = function () {
             $scope.errorMessage = undefined;
+            if (!$scope.entry.deviceId) {
+                $scope.errorMessage = localization.localize('plugin.itam.error.device.before.pictures');
+                $timeout(focusDeviceInput);
+                return;
+            }
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
                 return;
@@ -580,6 +589,13 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             var maxSize = 5 * 1024 * 1024;
             var allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
+            // The device number goes into the picture's stored file name, so a valid device must be
+            // selected before any picture (uploaded or captured) can be added.
+            if (!$scope.entry.deviceId) {
+                $scope.errorMessage = localization.localize('plugin.itam.error.device.before.pictures');
+                $timeout(focusDeviceInput);
+                return;
+            }
             if ($scope.pictures.length + files.length > 5) {
                 $scope.errorMessage = localization.localize('plugin.itam.error.too.many.pictures');
                 return;

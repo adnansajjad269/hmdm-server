@@ -55,6 +55,8 @@
   "plugin.itam.error.no.device": "Select a device first",
   "plugin.itam.error.invalid.device": "Select a valid device from the list",
   "plugin.itam.error.no.pictures": "Attach at least one picture",
+  "plugin.itam.error.device.before.pictures": "Select a device before adding pictures",
+  "plugin.itam.hint.device.scan.only": "Scan the device's barcode to select it.",
   "plugin.itam.error.device.not.found": "No device matches the scanned number",
   "plugin.itam.error.scan.unsupported": "Barcode scanning isn't supported by this browser. Use Chrome, Edge, or Android, or enter the number manually.",
   "plugin.itam.error.scan.camera": "Couldn't access the camera. Grant camera permission and open the panel over HTTPS.",
