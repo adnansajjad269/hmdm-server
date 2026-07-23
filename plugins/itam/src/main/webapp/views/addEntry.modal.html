@@ -11,7 +11,7 @@
             <div class="input-group">
                 <input type="text" id="itamDeviceInput" class="form-control" ng-model="selectedDeviceLabel"
                        ng-readonly="!canTypeDevice"
-                       localized-placeholder="{{canTypeDevice ? 'plugin.itam.placeholder.device.search' : 'plugin.itam.hint.device.scan.only'}}"
+                       placeholder="{{(canTypeDevice ? 'plugin.itam.placeholder.device.search' : 'plugin.itam.hint.device.scan.only') | localize}}"
                        autocomplete="off"
                        typeahead="device for device in getDevices($viewValue)"
                        typeahead-wait-ms="300"
