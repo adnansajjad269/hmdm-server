@@ -1,0 +1,17 @@
+<!-- Localization completed -->
+<div>
+    <div class="modal-header">
+        <h4 localized>plugin.itam.modal.picture.viewer.title</h4>
+    </div>
+    <div class="modal-body text-center">
+        <img ng-src="files/{{pictures[index]}}" style="max-width:100%; max-height:70vh;" />
+        <div class="help-block">{{index + 1}} / {{pictures.length}}</div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-default" ng-disabled="!hasPrev()" ng-click="prev()"
+                localized>plugin.itam.button.picture.previous</button>
+        <button type="button" class="btn btn-default" ng-disabled="!hasNext()" ng-click="next()"
+                localized>plugin.itam.button.picture.next</button>
+        <button type="button" class="btn btn-primary" ng-click="close()" localized>button.close</button>
+    </div>
+</div>

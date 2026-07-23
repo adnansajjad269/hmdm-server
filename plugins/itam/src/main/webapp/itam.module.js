@@ -118,6 +118,18 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             });
         };
 
+        $scope.openPictureViewer = function (log, index) {
+            $uibModal.open({
+                templateUrl: 'app/components/plugins/itam/views/pictureViewer.modal.html',
+                controller: 'PluginItamPictureViewerController',
+                size: 'lg',
+                resolve: {
+                    pictures: function () { return log.pictures; },
+                    startIndex: function () { return index; }
+                }
+            });
+        };
+
         $scope.removeEntry = function (log) {
             var text = localization.localize('plugin.itam.confirm.delete');
             confirmModal.getUserConfirmation(text, function () {
@@ -645,6 +657,29 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                 $scope.saving = false;
                 $scope.errorMessage = localization.localize('error.request.failure');
             });
+        };
+    })
+    .controller('PluginItamPictureViewerController', function ($scope, $uibModalInstance, pictures, startIndex) {
+        $scope.pictures = pictures || [];
+        $scope.index = startIndex || 0;
+
+        $scope.hasPrev = function () { return $scope.index > 0; };
+        $scope.hasNext = function () { return $scope.index < $scope.pictures.length - 1; };
+
+        $scope.prev = function () {
+            if ($scope.hasPrev()) {
+                $scope.index--;
+            }
+        };
+
+        $scope.next = function () {
+            if ($scope.hasNext()) {
+                $scope.index++;
+            }
+        };
+
+        $scope.close = function () {
+            $uibModalInstance.dismiss();
         };
     })
     .run(function (localization) {

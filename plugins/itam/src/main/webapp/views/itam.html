@@ -87,9 +87,8 @@
             <td>{{log.batteryCondition}}</td>
             <td>{{log.comments}}</td>
             <td>
-                <a ng-repeat="p in log.pictures" ng-href="files/{{p}}" target="_blank">
-                    <img ng-src="files/{{p}}" style="max-height:40px;max-width:40px;margin-right:4px" />
-                </a>
+                <img ng-repeat="p in log.pictures" ng-src="files/{{p}}" ng-click="openPictureViewer(log, $index)"
+                     style="max-height:40px;max-width:40px;margin-right:4px;cursor:pointer" />
             </td>
             <td>{{log.loggedByUserName}}</td>
             <td ng-if="hasPermission('plugin_itam_delete')">
