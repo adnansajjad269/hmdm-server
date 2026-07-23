@@ -24,6 +24,10 @@
             </div>
             <div ng-if="scanning" style="margin-top:8px;">
                 <video id="itamScanVideo" style="width:100%; max-height:300px; background:#000;" muted autoplay playsinline></video>
+                <div ng-if="canSwitchScanCamera">
+                    <button type="button" class="btn btn-default btn-sm" ng-click="switchScanCamera()"
+                            localized>plugin.itam.button.switch.camera</button>
+                </div>
                 <div class="help-block" localized>plugin.itam.hint.scan</div>
             </div>
         </div>
@@ -89,6 +93,8 @@
                 <div>
                     <button type="button" class="btn btn-primary btn-sm" ng-click="takePhoto()"
                             localized>plugin.itam.button.take.photo</button>
+                    <button type="button" class="btn btn-default btn-sm" ng-if="canSwitchCaptureCamera"
+                            ng-click="switchCaptureCamera()" localized>plugin.itam.button.switch.camera</button>
                     <button type="button" class="btn btn-default btn-sm" ng-click="stopCapture()"
                             localized>plugin.itam.button.scan.cancel</button>
                 </div>

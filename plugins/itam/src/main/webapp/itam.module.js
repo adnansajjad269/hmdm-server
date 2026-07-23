@@ -253,6 +253,54 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             });
         }
 
+        // ------------------------------------------------------------------ shared camera helpers
+        // Used by both the barcode scanner and the photo-capture camera below. Devices with more than
+        // one camera (e.g. multiple rear lenses) get a "Switch Camera" button that cycles through every
+        // navigator.mediaDevices videoinput; labels/deviceIds are only reliable after the first
+        // getUserMedia grant, so the list is (re)built right after each stream opens.
+        var cameraDevices = [];
+
+        function refreshCameraDevices() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                return $q.resolve([]);
+            }
+            return navigator.mediaDevices.enumerateDevices().then(function (devices) {
+                cameraDevices = devices.filter(function (d) { return d.kind === 'videoinput'; });
+                return cameraDevices;
+            });
+        }
+
+        // Always stop the previous stream's tracks (releasing the camera hardware) before requesting a
+        // new one -- opening a second camera while the first is still held open conflicts/fails on many
+        // Android devices.
+        function stopMediaStream(stream) {
+            if (stream) {
+                stream.getTracks().forEach(function (t) { t.stop(); });
+            }
+        }
+
+        function openCamera(deviceId) {
+            var videoConstraints = deviceId
+                ? {deviceId: {exact: deviceId}}
+                : {facingMode: {ideal: 'environment'}};
+            videoConstraints.width = {ideal: 1920};
+            videoConstraints.height = {ideal: 1080};
+            return navigator.mediaDevices.getUserMedia({video: videoConstraints});
+        }
+
+        function currentDeviceIdOf(stream) {
+            var track = stream.getVideoTracks()[0];
+            return track && track.getSettings ? track.getSettings().deviceId : null;
+        }
+
+        function attachStreamToVideo(stream, videoElementId) {
+            var video = document.getElementById(videoElementId);
+            video.srcObject = stream;
+            video.setAttribute('playsinline', 'true');
+            video.play();
+            return video;
+        }
+
         // ------------------------------------------------------------------ barcode scanning
         // Live camera scan using the browser-native BarcodeDetector (Chrome/Edge/Android). Requires an
         // HTTPS origin for camera access; on plain HTTP getUserMedia is rejected and we surface an error.
@@ -260,8 +308,34 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
         var scanDetector = null;
         var scanRAF = null;
         var scanActive = false;
+        var scanCameraIndex = 0;
 
         $scope.scanning = false;
+        $scope.canSwitchScanCamera = false;
+
+        // Every format BarcodeDetector's spec defines; narrowed at runtime to whatever this browser
+        // actually supports, so all encoding standards it's capable of are covered, not just a guessed
+        // subset (a guessed/hardcoded list is what caused some barcodes to go unrecognized before).
+        var ALL_BARCODE_FORMATS = ['aztec', 'code_128', 'code_39', 'code_93', 'codabar', 'data_matrix',
+            'ean_13', 'ean_8', 'itf', 'pdf417', 'qr_code', 'upc_a', 'upc_e'];
+
+        function createBarcodeDetector() {
+            if (typeof window.BarcodeDetector.getSupportedFormats === 'function') {
+                return window.BarcodeDetector.getSupportedFormats().then(function (supported) {
+                    var formats = ALL_BARCODE_FORMATS.filter(function (f) {
+                        return supported.indexOf(f) !== -1;
+                    });
+                    return new window.BarcodeDetector({formats: formats.length ? formats : supported});
+                }).catch(function () {
+                    return new window.BarcodeDetector();
+                });
+            }
+            try {
+                return $q.resolve(new window.BarcodeDetector({formats: ALL_BARCODE_FORMATS}));
+            } catch (e) {
+                return $q.resolve(new window.BarcodeDetector());
+            }
+        }
 
         $scope.startScan = function () {
             $scope.errorMessage = undefined;
@@ -276,23 +350,24 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             $scope.scanning = true;
             // Let the <video> element render before wiring the stream to it.
             $timeout(function () {
-                navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}})
+                openCamera()
                     .then(function (stream) {
                         scanStream = stream;
-                        var video = document.getElementById('itamScanVideo');
-                        video.srcObject = stream;
-                        video.setAttribute('playsinline', 'true');
-                        video.play();
-                        try {
-                            scanDetector = new window.BarcodeDetector({
-                                formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e',
-                                    'itf', 'codabar', 'qr_code', 'data_matrix']
+                        var video = attachStreamToVideo(stream, 'itamScanVideo');
+                        return refreshCameraDevices().then(function (devices) {
+                            var currentId = currentDeviceIdOf(stream);
+                            scanCameraIndex = Math.max(0, devices.findIndex(function (d) {
+                                return d.deviceId === currentId;
+                            }));
+                            $scope.$applyAsync(function () {
+                                $scope.canSwitchScanCamera = devices.length > 1;
                             });
-                        } catch (e) {
-                            scanDetector = new window.BarcodeDetector();
-                        }
-                        scanActive = true;
-                        detectLoop(video);
+                            return createBarcodeDetector();
+                        }).then(function (detector) {
+                            scanDetector = detector;
+                            scanActive = true;
+                            detectLoop(video);
+                        });
                     })
                     .catch(function () {
                         $scope.$applyAsync(function () {
@@ -300,6 +375,35 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                             $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
                         });
                     });
+            });
+        };
+
+        $scope.switchScanCamera = function () {
+            if (!cameraDevices.length) {
+                return;
+            }
+            scanActive = false;
+            if (scanRAF) {
+                cancelAnimationFrame(scanRAF);
+                scanRAF = null;
+            }
+            stopMediaStream(scanStream);
+            scanStream = null;
+            scanCameraIndex = (scanCameraIndex + 1) % cameraDevices.length;
+            var nextDeviceId = cameraDevices[scanCameraIndex].deviceId;
+            openCamera(nextDeviceId).then(function (stream) {
+                scanStream = stream;
+                var video = attachStreamToVideo(stream, 'itamScanVideo');
+                return createBarcodeDetector().then(function (detector) {
+                    scanDetector = detector;
+                    scanActive = true;
+                    detectLoop(video);
+                });
+            }).catch(function () {
+                $scope.$applyAsync(function () {
+                    $scope.scanning = false;
+                    $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
+                });
             });
         };
 
@@ -335,19 +439,20 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                 cancelAnimationFrame(scanRAF);
                 scanRAF = null;
             }
-            if (scanStream) {
-                scanStream.getTracks().forEach(function (t) { t.stop(); });
-                scanStream = null;
-            }
+            stopMediaStream(scanStream);
+            scanStream = null;
             $scope.scanning = false;
+            $scope.canSwitchScanCamera = false;
         };
 
         // ------------------------------------------------------------------ camera photo capture
         // In-page camera (getUserMedia) with a live preview + shutter, so it works inside the website
         // rather than handing off to a native file/camera picker. Also requires an HTTPS origin.
         var captureStream = null;
+        var captureCameraIndex = 0;
 
         $scope.capturing = false;
+        $scope.canSwitchCaptureCamera = false;
 
         $scope.startCapture = function () {
             $scope.errorMessage = undefined;
@@ -357,13 +462,20 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             }
             $scope.capturing = true;
             $timeout(function () {
-                navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}})
+                openCamera()
                     .then(function (stream) {
                         captureStream = stream;
-                        var video = document.getElementById('itamCaptureVideo');
-                        video.srcObject = stream;
-                        video.setAttribute('playsinline', 'true');
-                        video.play();
+                        attachStreamToVideo(stream, 'itamCaptureVideo');
+                        return refreshCameraDevices();
+                    })
+                    .then(function (devices) {
+                        var currentId = currentDeviceIdOf(captureStream);
+                        captureCameraIndex = Math.max(0, devices.findIndex(function (d) {
+                            return d.deviceId === currentId;
+                        }));
+                        $scope.$applyAsync(function () {
+                            $scope.canSwitchCaptureCamera = devices.length > 1;
+                        });
                     })
                     .catch(function () {
                         $scope.$applyAsync(function () {
@@ -371,6 +483,25 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                             $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
                         });
                     });
+            });
+        };
+
+        $scope.switchCaptureCamera = function () {
+            if (!cameraDevices.length) {
+                return;
+            }
+            stopMediaStream(captureStream);
+            captureStream = null;
+            captureCameraIndex = (captureCameraIndex + 1) % cameraDevices.length;
+            var nextDeviceId = cameraDevices[captureCameraIndex].deviceId;
+            openCamera(nextDeviceId).then(function (stream) {
+                captureStream = stream;
+                attachStreamToVideo(stream, 'itamCaptureVideo');
+            }).catch(function () {
+                $scope.$applyAsync(function () {
+                    $scope.capturing = false;
+                    $scope.errorMessage = localization.localize('plugin.itam.error.scan.camera');
+                });
             });
         };
 
@@ -396,11 +527,10 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
         };
 
         $scope.stopCapture = function () {
-            if (captureStream) {
-                captureStream.getTracks().forEach(function (t) { t.stop(); });
-                captureStream = null;
-            }
+            stopMediaStream(captureStream);
+            captureStream = null;
             $scope.capturing = false;
+            $scope.canSwitchCaptureCamera = false;
         };
 
         $scope.$on('$destroy', function () {
