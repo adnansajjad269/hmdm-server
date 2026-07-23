@@ -198,14 +198,23 @@ public class ItamResource {
             }
 
             int customerId = SecurityContext.get().getCurrentUser().map(u -> u.getCustomerId()).orElse(0);
+
+            DeviceLookupItem device = itamDAO.getDeviceTelemetry(request.getDeviceId());
+            String deviceNumber = (device != null && device.getNumber() != null) ? device.getNumber() : "device" + request.getDeviceId();
+            // DDMM_HHmmss of the submission, shared by every picture in this entry; a "_2", "_3"...
+            // suffix distinguishes additional pictures (PICTURE_NAME_FORMAT: DeviceNumber_DDMM_HHMMSS).
+            String pictureTimestamp = new SimpleDateFormat("ddMM_HHmmss").format(new Date());
+
             List<String> savedPaths = new ArrayList<>();
-            if (pictureParts != null) {
-                for (FormDataBodyPart part : pictureParts) {
-                    try (InputStream is = part.getValueAs(InputStream.class)) {
-                        String fileName = part.getContentDisposition().getFileName();
-                        String contentType = part.getMediaType() != null ? part.getMediaType().toString() : null;
-                        savedPaths.add(pictureStorage.save(customerId, is, fileName, contentType));
-                    }
+            int pictureIndex = 1;
+            for (FormDataBodyPart part : pictureParts) {
+                try (InputStream is = part.getValueAs(InputStream.class)) {
+                    String fileName = part.getContentDisposition().getFileName();
+                    String contentType = part.getMediaType() != null ? part.getMediaType().toString() : null;
+                    String baseName = deviceNumber + "_" + pictureTimestamp
+                            + (pictureIndex > 1 ? "_" + pictureIndex : "");
+                    savedPaths.add(pictureStorage.save(customerId, is, fileName, contentType, baseName));
+                    pictureIndex++;
                 }
             }
 

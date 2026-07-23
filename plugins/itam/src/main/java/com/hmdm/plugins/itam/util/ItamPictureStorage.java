@@ -11,7 +11,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.UUID;
 
 /**
  * Writes/deletes ITAM picture uploads under &lt;files.directory&gt;/&lt;customer files dir&gt;/itam/.
@@ -33,20 +32,33 @@ public class ItamPictureStorage {
     }
 
     /**
+     * @param baseName the desired file name, without extension (e.g. "LMWH1-000_2007_114836", or with a
+     *                 "_2", "_3"... suffix already appended by the caller for additional pictures in the
+     *                 same entry). The original file's extension is preserved; a numeric suffix is added
+     *                 automatically if a file with that exact name already exists on disk.
      * @return the path (relative to files.directory) to store in the DB, or null if the upload was rejected.
      */
-    public String save(int customerId, InputStream content, String originalFileName, String contentType) throws IOException {
+    public String save(int customerId, InputStream content, String originalFileName, String contentType, String baseName) throws IOException {
         if (!isAllowedType(contentType, originalFileName)) {
             throw new IOException("Unsupported picture type: " + contentType);
         }
         Customer customer = customerDAO.findById(customerId);
         String customerDir = (customer != null && customer.getFilesDir() != null) ? customer.getFilesDir() : "";
 
-        String safeName = FileUtil.adjustFileName(originalFileName);
-        String storedName = UUID.randomUUID() + "_" + safeName;
-        String relativePath = (customerDir.isEmpty() ? "" : customerDir + File.separator) + "itam" + File.separator + storedName;
+        String safeBaseName = FileUtil.adjustFileName(baseName);
+        String extension = extensionOf(originalFileName, contentType);
+        String dirPath = (customerDir.isEmpty() ? "" : customerDir + File.separator) + "itam";
 
-        File target = new File(this.filesDirectory, relativePath);
+        String storedName = safeBaseName + extension;
+        File target = new File(this.filesDirectory, dirPath + File.separator + storedName);
+        int collisionSuffix = 2;
+        while (target.exists()) {
+            storedName = safeBaseName + "_" + collisionSuffix + extension;
+            target = new File(this.filesDirectory, dirPath + File.separator + storedName);
+            collisionSuffix++;
+        }
+        String relativePath = dirPath + File.separator + storedName;
+
         if (!FileUtil.isSafePath(target.getPath())) {
             throw new IOException("Invalid picture path");
         }
@@ -62,6 +74,24 @@ public class ItamPictureStorage {
         }
 
         return relativePath;
+    }
+
+    private static String extensionOf(String originalFileName, String contentType) {
+        String name = originalFileName == null ? "" : originalFileName.toLowerCase();
+        if (name.endsWith(".jpeg")) {
+            return ".jpeg";
+        }
+        if (name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".webp")) {
+            return name.substring(name.lastIndexOf('.'));
+        }
+        String type = (contentType != null ? contentType : "").toLowerCase();
+        if (type.equals("image/png")) {
+            return ".png";
+        }
+        if (type.equals("image/webp")) {
+            return ".webp";
+        }
+        return ".jpg";
     }
 
     public void delete(String relativePath) {
