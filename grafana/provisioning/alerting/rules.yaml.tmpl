@@ -222,3 +222,12 @@ groups:
               expression: B
               conditions:
                 - evaluator: { type: gt, params: [${ONLINE_THRESHOLD_SECONDS}] }
+
+# File-provisioning only adds/updates rules matching a UID present above -- it does NOT
+# delete a rule whose UID disappeared from an earlier version of this file. The old
+# single-threshold "Device offline too long" rule (uid hmdm-offline-1h) predates the
+# tiered "Offline devices report" rule and must be explicitly retired here, or it keeps
+# firing forever alongside the new one.
+deleteRules:
+  - orgId: 1
+    uid: hmdm-offline-1h
