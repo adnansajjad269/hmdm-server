@@ -19,19 +19,9 @@
                 <span class="input-group-btn">
                     <button type="button" class="btn btn-default" ng-hide="scanning" ng-click="startScan()"
                             localized>plugin.itam.button.scan</button>
-                    <button type="button" class="btn btn-default" ng-show="scanning" ng-click="stopScan()"
-                            localized>plugin.itam.button.scan.cancel</button>
                 </span>
             </div>
             <div class="help-block" ng-if="!canTypeDevice" localized>plugin.itam.hint.device.scan.only</div>
-            <div ng-if="scanning" style="margin-top:8px;">
-                <video id="itamScanVideo" style="width:100%; max-height:300px; background:#000;" muted autoplay playsinline></video>
-                <div ng-if="canSwitchScanCamera">
-                    <button type="button" class="btn btn-default btn-sm" ng-click="switchScanCamera()"
-                            localized>plugin.itam.button.switch.camera</button>
-                </div>
-                <div class="help-block" localized>plugin.itam.hint.scan</div>
-            </div>
         </div>
 
         <div class="alert alert-info" ng-if="telemetry">
@@ -91,17 +81,6 @@
                         ng-click="startCapture()" localized>plugin.itam.button.capture.photo</button>
             </div>
             <div class="help-block" ng-if="!entry.deviceId" localized>plugin.itam.error.device.before.pictures</div>
-            <div ng-if="capturing" style="margin-top:8px;">
-                <video id="itamCaptureVideo" style="width:100%; max-height:300px; background:#000;" muted autoplay playsinline></video>
-                <div>
-                    <button type="button" class="btn btn-primary btn-sm" ng-click="takePhoto()"
-                            localized>plugin.itam.button.take.photo</button>
-                    <button type="button" class="btn btn-default btn-sm" ng-if="canSwitchCaptureCamera"
-                            ng-click="switchCaptureCamera()" localized>plugin.itam.button.switch.camera</button>
-                    <button type="button" class="btn btn-default btn-sm" ng-click="stopCapture()"
-                            localized>plugin.itam.button.scan.cancel</button>
-                </div>
-            </div>
             <div class="help-block" localized>plugin.itam.hint.pictures.limit</div>
             <ul class="list-unstyled">
                 <li ng-repeat="p in pictures track by $index">
@@ -113,5 +92,28 @@
     <div class="modal-footer">
         <button type="button" class="btn btn-default" ng-click="closeModal()" localized>button.cancel</button>
         <button type="button" class="btn btn-primary" ng-disabled="saving" ng-click="save()" localized>button.save</button>
+    </div>
+
+    <div ng-if="scanning" style="position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2000; background:#000;">
+        <video id="itamScanVideo" style="width:100%; height:100%; object-fit:cover;" muted autoplay playsinline></video>
+        <div style="position:absolute; bottom:0; left:0; right:0; padding:16px; text-align:center; background:rgba(0,0,0,0.6);">
+            <div class="help-block" style="color:#fff; margin-bottom:8px;" localized>plugin.itam.hint.scan</div>
+            <button type="button" class="btn btn-default" ng-if="canSwitchScanCamera" ng-click="switchScanCamera()"
+                    localized>plugin.itam.button.switch.camera</button>
+            <button type="button" class="btn btn-danger" ng-click="stopScan()"
+                    localized>plugin.itam.button.scan.cancel</button>
+        </div>
+    </div>
+
+    <div ng-if="capturing" style="position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2000; background:#000;">
+        <video id="itamCaptureVideo" style="width:100%; height:100%; object-fit:cover;" muted autoplay playsinline></video>
+        <div style="position:absolute; bottom:0; left:0; right:0; padding:16px; text-align:center; background:rgba(0,0,0,0.6);">
+            <button type="button" class="btn btn-primary" ng-click="takePhoto()"
+                    localized>plugin.itam.button.take.photo</button>
+            <button type="button" class="btn btn-default" ng-if="canSwitchCaptureCamera" ng-click="switchCaptureCamera()"
+                    localized>plugin.itam.button.switch.camera</button>
+            <button type="button" class="btn btn-danger" ng-click="stopCapture()"
+                    localized>plugin.itam.button.scan.cancel</button>
+        </div>
     </div>
 </div>
