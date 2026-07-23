@@ -136,6 +136,17 @@ ALTER ROLE grafana_ro PASSWORD '$HMDM_GRAFANA_RO_PASSWORD';
 GRANT SELECT ON devices TO hmdm_stats;
 GRANT SELECT, INSERT, DELETE ON device_status_history TO hmdm_stats;
 GRANT SELECT ON device_status_history TO grafana_ro;
+GRANT SELECT ON devices TO grafana_ro;
+-- plugin_itam_log (ITAM plugin's own table, for the offline-report rule's owner-name
+-- join) only exists once the main webapp has started at least once with that plugin
+-- bundled; grant conditionally so a fresh/out-of-order install doesn't fail here.
+DO \$\$
+BEGIN
+    IF to_regclass('public.plugin_itam_log') IS NOT NULL THEN
+        GRANT SELECT ON plugin_itam_log TO grafana_ro;
+    END IF;
+END
+\$\$;
 SQL
 
 # --- 6. snapshot dependencies, logging, cron ----------------------------------------------
@@ -231,11 +242,16 @@ install -m 644 "$RUNTIME/grafana/provisioning/dashboards/json/fleet-dashboard.js
     "$GRAFANA_DASH_DIR/fleet-dashboard.json"
 chown -R grafana:grafana "$GRAFANA_DASH_DIR"
 
-export BATTERY_WARN BATTERY_CRIT OFFLINE_ALERT_SECONDS ONLINE_THRESHOLD_SECONDS
-envsubst '${BATTERY_WARN} ${BATTERY_CRIT} ${OFFLINE_ALERT_SECONDS} ${ONLINE_THRESHOLD_SECONDS}' \
+export BATTERY_WARN BATTERY_CRIT ONLINE_THRESHOLD_SECONDS
+envsubst '${BATTERY_WARN} ${BATTERY_CRIT} ${ONLINE_THRESHOLD_SECONDS}' \
     <"$RUNTIME/grafana/provisioning/alerting/rules.yaml.tmpl" \
     >/etc/grafana/provisioning/alerting/hmdm-rules.yaml
 chmod 644 /etc/grafana/provisioning/alerting/hmdm-rules.yaml
+
+# Notification template for the offline-devices report -- installed unconditionally;
+# harmless if unreferenced (only the offline-report-webhook contact point uses it).
+install -m 644 "$RUNTIME/grafana/provisioning/alerting/templates.yaml" \
+    /etc/grafana/provisioning/alerting/hmdm-templates.yaml
 
 # contact points: include only receivers that are configured
 if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
@@ -260,10 +276,48 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "          url: \"$ALERT_WEBHOOK_URL\""
             echo "          httpMethod: POST"
         fi
+        # A separate contact point for the offline-devices report (same URL, but with its
+        # own custom-formatted message template) -- kept distinct from hmdm-alerts so the
+        # tiered report template doesn't also apply to battery/pipeline-stale alerts.
+        if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
+            echo "  - orgId: 1"
+            echo "    name: hmdm-offline-report-webhook"
+            echo "    receivers:"
+            echo "      - uid: hmdm-offline-report-webhook"
+            echo "        type: webhook"
+            echo "        settings:"
+            echo "          url: \"$ALERT_WEBHOOK_URL\""
+            echo "          httpMethod: POST"
+            echo "          message: '{{ template \"hmdm_offline_report\" . }}'"
+        fi
     } >"$CP"
     chmod 640 "$CP"; chown root:grafana "$CP"
-    install -m 644 "$RUNTIME/grafana/provisioning/alerting/notification-policies.yaml.tmpl" \
-        /etc/grafana/provisioning/alerting/hmdm-notification-policies.yaml
+
+    # Notification policy: built inline (not from a static template) because the
+    # offline-report child route can only exist when ALERT_WEBHOOK_URL is configured --
+    # routing to a contact point that doesn't exist would fail Grafana's provisioning.
+    NP=/etc/grafana/provisioning/alerting/hmdm-notification-policies.yaml
+    {
+        echo "apiVersion: 1"
+        echo "policies:"
+        echo "  - orgId: 1"
+        echo "    receiver: hmdm-alerts"
+        echo "    group_by: [\"alertname\", \"device_number\"]"
+        echo "    group_wait: 30s"
+        echo "    group_interval: 5m"
+        echo "    repeat_interval: 4h"
+        if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
+            echo "    routes:"
+            echo "      - receiver: hmdm-offline-report-webhook"
+            echo "        matchers:"
+            echo "          - report = offline-summary"
+            echo "        group_by: [\"alertname\"]"
+            echo "        group_wait: 30s"
+            echo "        group_interval: 5m"
+            echo "        repeat_interval: 4h"
+        fi
+    } >"$NP"
+    chmod 640 "$NP"; chown root:grafana "$NP"
 else
     echo "WARN: neither ALERT_EMAIL_TO nor ALERT_WEBHOOK_URL set — alert rules are" >&2
     echo "      provisioned but route to Grafana's default (empty) receiver." >&2

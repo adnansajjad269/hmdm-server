@@ -1,6 +1,8 @@
 # Grafana file-provisioned alert rules — rendered by install.sh with an explicit
-# envsubst variable list (${BATTERY_WARN} ${BATTERY_CRIT} ${OFFLINE_ALERT_SECONDS}
-# ${ONLINE_THRESHOLD_SECONDS}) so Grafana macros like $__timeFilter are untouched.
+# envsubst variable list (${BATTERY_WARN} ${BATTERY_CRIT} ${ONLINE_THRESHOLD_SECONDS})
+# so Grafana macros like $__timeFilter are untouched. OFFLINE_ALERT_SECONDS is no
+# longer used here -- the offline-report rule below reports every offline device,
+# tiered by duration, rather than firing past a single threshold.
 # UIDs are hardcoded so re-provisioning updates rules instead of duplicating them.
 # The folder "HMDM Stats" (uid hmdm-stats) is created by the dashboard provider.
 apiVersion: 1
@@ -11,8 +13,8 @@ groups:
     folder: HMDM Stats
     interval: 5m
     rules:
-      - uid: hmdm-offline-1h
-        title: Device offline too long
+      - uid: hmdm-offline-report
+        title: Offline devices report
         condition: C
         for: 0s
         noDataState: OK
@@ -20,8 +22,9 @@ groups:
         labels:
           severity: warning
           source: hmdm-stats
+          report: offline-summary
         annotations:
-          summary: "Device {{ $labels.device_number }} has been offline for over ${OFFLINE_ALERT_SECONDS} seconds."
+          summary: "{{ $labels.heading }} -- see the webhook/email body for the full device list."
         data:
           - refId: A
             relativeTimeRange: { from: 21600, to: 0 }
@@ -30,7 +33,55 @@ groups:
               refId: A
               format: table
               rawQuery: true
-              rawSql: "WITH latest AS (SELECT DISTINCT ON (device_number) device_number, online, last_update FROM device_status_history ORDER BY device_number, sampled_at DESC) SELECT device_number, extract(epoch FROM (now() - COALESCE(last_update, timestamptz 'epoch'))) AS seconds_offline FROM latest WHERE NOT online"
+              # One row per non-empty offline tier (<1h / 1-12h / >12h), each already fully
+              # pre-formatted (heading with its count, and a newline-joined device list) so the
+              # notification template just has to print each row -- no counting/filtering/
+              # arithmetic needed in Grafana's template engine, which only reliably supports
+              # basic range/if/index, not Sprig-style helpers. Zero offline devices overall means
+              # zero rows here, so the rule simply doesn't fire and no webhook goes out that cycle.
+              rawSql: >
+                WITH latest AS (
+                  SELECT DISTINCT ON (dsh.device_number) dsh.device_number, dsh.online, dsh.last_update
+                  FROM device_status_history dsh
+                  ORDER BY dsh.device_number, dsh.sampled_at DESC
+                ),
+                offline_devices AS (
+                  SELECT device_number,
+                         GREATEST(0, ROUND((extract(epoch FROM (now() - COALESCE(last_update, timestamptz 'epoch'))) / 3600.0)::numeric))::int AS hours_offline
+                  FROM latest
+                  WHERE NOT online
+                ),
+                owners AS (
+                  SELECT DISTINCT ON (d.number) d.number AS device_number, l.ownername
+                  FROM devices d
+                  JOIN plugin_itam_log l ON l.deviceid = d.id AND l.deletedat IS NULL
+                  ORDER BY d.number, l.createdat DESC
+                ),
+                tiered AS (
+                  SELECT o.device_number,
+                         COALESCE(ow.ownername, 'N/A') AS owner_name,
+                         o.hours_offline,
+                         CASE WHEN o.hours_offline < 1 THEN 'lt1h'
+                              WHEN o.hours_offline < 12 THEN 'lt12h'
+                              ELSE 'gt12h' END AS tier
+                  FROM offline_devices o
+                  LEFT JOIN owners ow ON ow.device_number = o.device_number
+                ),
+                totals AS (
+                  SELECT count(*) AS total_offline FROM tiered
+                )
+                SELECT tier,
+                       (CASE tier
+                            WHEN 'lt1h' THEN 'Offline < 1 hour'
+                            WHEN 'lt12h' THEN 'Offline 1-12 hours'
+                            ELSE 'Offline > 12 hours'
+                        END || ' (' || count(*) || ' devices)') AS heading,
+                       string_agg(device_number || ' -- ' || owner_name || ' -- ' || hours_offline || ' hours', E'\n' ORDER BY device_number) AS device_list,
+                       (SELECT total_offline FROM totals) AS total_offline,
+                       1 AS matched
+                FROM tiered
+                GROUP BY tier
+                ORDER BY CASE tier WHEN 'lt1h' THEN 1 WHEN 'lt12h' THEN 2 ELSE 3 END
           - refId: B
             datasourceUid: __expr__
             model:
@@ -45,7 +96,9 @@ groups:
               type: threshold
               expression: B
               conditions:
-                - evaluator: { type: gt, params: [${OFFLINE_ALERT_SECONDS}] }
+                # "matched" is always 1 -- a row existing (i.e. a non-empty tier) is itself
+                # the condition; the real bucketing already happened in the SQL above.
+                - evaluator: { type: gt, params: [0] }
 
       - uid: hmdm-battery-warn
         title: Battery low (warn tier)

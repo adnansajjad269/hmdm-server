@@ -1,0 +1,24 @@
+# Grafana file-provisioned notification template — static (no envsubst substitution
+# needed), installed as-is by install.sh. Referenced by the "hmdm-offline-report-webhook"
+# contact point's message setting as {{ template "hmdm_offline_report" . }}.
+#
+# Deliberately uses only range/index/dot-field access -- no Sprig-style helpers
+# (dict/list/append/add), since Grafana's alerting template engine doesn't guarantee
+# those are available. All counting/bucketing/formatting already happened in the
+# "Offline devices report" rule's SQL (see rules.yaml.tmpl), so this template only
+# has to print each already-formatted row.
+apiVersion: 1
+
+templates:
+  - orgId: 1
+    name: hmdm_offline_report
+    template: |
+      {{ define "hmdm_offline_report" }}
+      Offline Devices Report -- {{ (index .Alerts.Firing 0).Labels.total_offline }} devices offline
+      {{ range .Alerts.Firing }}
+      ------------------------------------
+      {{ .Labels.heading }}
+      ------------------------------------
+      {{ .Labels.device_list }}
+      {{ end }}
+      {{ end }}
