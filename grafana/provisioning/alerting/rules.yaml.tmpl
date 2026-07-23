@@ -39,6 +39,14 @@ groups:
               # arithmetic needed in Grafana's template engine, which only reliably supports
               # basic range/if/index, not Sprig-style helpers. Zero offline devices overall means
               # zero rows here, so the rule simply doesn't fire and no webhook goes out that cycle.
+              # Only devices with a genuine current owner (per their latest non-deleted ITAM log
+              # entry) are reported at all -- unassigned/stock devices (blank owner, "N/A", or no
+              # ITAM log entry) can sit offline indefinitely without ever appearing here.
+              # IMPORTANT: this rawSql uses YAML's ">" folded scalar, which joins wrapped lines
+              # with a single space -- do not add a SQL "--" line comment inside it (a "#" comment
+              # above, like this one, is fine); a "--" comment here would silently swallow
+              # everything up to the next real newline, since folding removes the line breaks a
+              # "--" comment depends on to end.
               rawSql: >
                 WITH latest AS (
                   SELECT DISTINCT ON (dsh.device_number) dsh.device_number, dsh.online, dsh.last_update
@@ -51,21 +59,28 @@ groups:
                   FROM latest
                   WHERE NOT online
                 ),
-                owners AS (
+                latest_owner AS (
                   SELECT DISTINCT ON (d.number) d.number AS device_number, l.ownername
                   FROM devices d
                   JOIN plugin_itam_log l ON l.deviceid = d.id AND l.deletedat IS NULL
                   ORDER BY d.number, l.createdat DESC
                 ),
+                owners AS (
+                  SELECT device_number, ownername
+                  FROM latest_owner
+                  WHERE ownername IS NOT NULL
+                    AND trim(ownername) <> ''
+                    AND upper(trim(ownername)) <> 'N/A'
+                ),
                 tiered AS (
                   SELECT o.device_number,
-                         COALESCE(ow.ownername, 'N/A') AS owner_name,
+                         ow.ownername AS owner_name,
                          o.hours_offline,
                          CASE WHEN o.hours_offline < 1 THEN 'lt1h'
                               WHEN o.hours_offline < 12 THEN 'lt12h'
                               ELSE 'gt12h' END AS tier
                   FROM offline_devices o
-                  LEFT JOIN owners ow ON ow.device_number = o.device_number
+                  JOIN owners ow ON ow.device_number = o.device_number
                 ),
                 totals AS (
                   SELECT count(*) AS total_offline FROM tiered
