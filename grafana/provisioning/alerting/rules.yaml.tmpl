@@ -42,14 +42,19 @@ groups:
               # entry) are reported at all -- unassigned/stock devices (blank owner, "N/A", or no
               # ITAM log entry) can sit offline indefinitely without ever appearing here.
               # The final SELECT always returns at least one row via a UNION ALL sentinel
-              # ("tier='none', matched=0") when report_rows is empty. Grafana's reduce/threshold
-              # expression pipeline throws an "input data must be a wide series" evaluation error
-              # on a genuinely empty result table instead of cleanly treating it as "no data" --
-              # with execErrState: Alerting (below), that error would incorrectly fire the rule
-              # exactly when zero devices are offline. The sentinel keeps the query non-empty and
-              # type-safe; its matched=0 always fails the "gt 0" threshold, so it never itself
-              # fires or reaches the notification template -- zero real offline devices still
-              # correctly means zero firing instances and no webhook that cycle.
+              # ("tier='none', matched=0") when report_rows is empty, so a genuinely empty
+              # result table never has to be handled downstream. Its matched=0 always fails
+              # the "gt 0" threshold, so it never itself fires or reaches the notification
+              # template -- zero real offline devices still correctly means zero firing
+              # instances and no webhook that cycle.
+              # sort_order is a plain output column (not an inline expression) specifically
+              # because Postgres disallows an ORDER BY expression after a UNION ALL -- it
+              # only allows plain output column names/positions there. An earlier version of
+              # this query used "ORDER BY CASE tier WHEN ... END" directly and Postgres
+              # rejected it with "invalid UNION/INTERSECT/EXCEPT ORDER BY clause", which made
+              # the whole datasource query fail; Grafana's reduce/threshold pipeline surfaced
+              # that failure as the unrelated-looking "input data must be a wide series but
+              # got type not (input refid)" evaluation error instead of the real Postgres one.
               # IMPORTANT: this rawSql uses YAML's ">" folded scalar, which joins wrapped lines
               # with a single space -- do not add a SQL "--" line comment inside it (a "#" comment
               # above, like this one, is fine); a "--" comment here would silently swallow
@@ -102,15 +107,16 @@ groups:
                           END || ' (' || count(*) || ' devices)') AS heading,
                          string_agg(device_number || ' -- ' || owner_name || ' -- ' || hours_offline || ' hours', '~~~' ORDER BY device_number) AS device_list,
                          (SELECT total_offline FROM totals) AS total_offline,
-                         1 AS matched
+                         1 AS matched,
+                         CASE tier WHEN 'gt12h' THEN 1 WHEN 'lt12h' THEN 2 WHEN 'lt1h' THEN 3 ELSE 4 END AS sort_order
                   FROM tiered
                   GROUP BY tier
                 )
-                SELECT tier, heading, device_list, total_offline, matched FROM report_rows
+                SELECT tier, heading, device_list, total_offline, matched, sort_order FROM report_rows
                 UNION ALL
-                SELECT 'none', '', '', 0, 0
+                SELECT 'none', '', '', 0, 0, 4
                 WHERE NOT EXISTS (SELECT 1 FROM report_rows)
-                ORDER BY CASE tier WHEN 'gt12h' THEN 1 WHEN 'lt12h' THEN 2 WHEN 'lt1h' THEN 3 ELSE 4 END
+                ORDER BY sort_order
           - refId: B
             datasourceUid: __expr__
             model:
