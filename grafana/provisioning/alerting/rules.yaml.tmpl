@@ -51,10 +51,16 @@ groups:
               # because Postgres disallows an ORDER BY expression after a UNION ALL -- it
               # only allows plain output column names/positions there. An earlier version of
               # this query used "ORDER BY CASE tier WHEN ... END" directly and Postgres
-              # rejected it with "invalid UNION/INTERSECT/EXCEPT ORDER BY clause", which made
-              # the whole datasource query fail; Grafana's reduce/threshold pipeline surfaced
-              # that failure as the unrelated-looking "input data must be a wide series but
-              # got type not (input refid)" evaluation error instead of the real Postgres one.
+              # rejected it with "invalid UNION/INTERSECT/EXCEPT ORDER BY clause".
+              # For a Grafana-managed alert with format: table, the response is only accepted
+              # as a valid "wide series" if it has EXACTLY ONE numeric column -- any string
+              # columns become row labels, but a second (or third) numeric column makes Grafana
+              # unable to pick "the" value field, and evaluation fails with the misleading
+              # "input data must be a wide series but got type not (input refid)" error. matched
+              # is the one column that must stay numeric (it feeds the "gt 0" threshold below);
+              # total_offline and sort_order are cast to text so they become labels instead --
+              # they're only ever read back out as label strings in the notification template
+              # and in ORDER BY, never used as numbers by Grafana itself.
               # IMPORTANT: this rawSql uses YAML's ">" folded scalar, which joins wrapped lines
               # with a single space -- do not add a SQL "--" line comment inside it (a "#" comment
               # above, like this one, is fine); a "--" comment here would silently swallow
@@ -106,15 +112,15 @@ groups:
                               ELSE 'Offline > 12 hours'
                           END || ' (' || count(*) || ' devices)') AS heading,
                          string_agg(device_number || ' -- ' || owner_name || ' -- ' || hours_offline || ' hours', '~~~' ORDER BY device_number) AS device_list,
-                         (SELECT total_offline FROM totals) AS total_offline,
+                         ((SELECT total_offline FROM totals))::text AS total_offline,
                          1 AS matched,
-                         CASE tier WHEN 'gt12h' THEN 1 WHEN 'lt12h' THEN 2 WHEN 'lt1h' THEN 3 ELSE 4 END AS sort_order
+                         (CASE tier WHEN 'gt12h' THEN 1 WHEN 'lt12h' THEN 2 WHEN 'lt1h' THEN 3 ELSE 4 END)::text AS sort_order
                   FROM tiered
                   GROUP BY tier
                 )
                 SELECT tier, heading, device_list, total_offline, matched, sort_order FROM report_rows
                 UNION ALL
-                SELECT 'none', '', '', 0, 0, 4
+                SELECT 'none', '', '', '0', 0, '4'
                 WHERE NOT EXISTS (SELECT 1 FROM report_rows)
                 ORDER BY sort_order
           - refId: B
