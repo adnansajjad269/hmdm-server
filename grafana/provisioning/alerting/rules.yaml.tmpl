@@ -37,11 +37,19 @@ groups:
               # pre-formatted (heading with its count, and a newline-joined device list) so the
               # notification template just has to print each row -- no counting/filtering/
               # arithmetic needed in Grafana's template engine, which only reliably supports
-              # basic range/if/index, not Sprig-style helpers. Zero offline devices overall means
-              # zero rows here, so the rule simply doesn't fire and no webhook goes out that cycle.
+              # basic range/if/index, not Sprig-style helpers.
               # Only devices with a genuine current owner (per their latest non-deleted ITAM log
               # entry) are reported at all -- unassigned/stock devices (blank owner, "N/A", or no
               # ITAM log entry) can sit offline indefinitely without ever appearing here.
+              # The final SELECT always returns at least one row via a UNION ALL sentinel
+              # ("tier='none', matched=0") when report_rows is empty. Grafana's reduce/threshold
+              # expression pipeline throws an "input data must be a wide series" evaluation error
+              # on a genuinely empty result table instead of cleanly treating it as "no data" --
+              # with execErrState: Alerting (below), that error would incorrectly fire the rule
+              # exactly when zero devices are offline. The sentinel keeps the query non-empty and
+              # type-safe; its matched=0 always fails the "gt 0" threshold, so it never itself
+              # fires or reaches the notification template -- zero real offline devices still
+              # correctly means zero firing instances and no webhook that cycle.
               # IMPORTANT: this rawSql uses YAML's ">" folded scalar, which joins wrapped lines
               # with a single space -- do not add a SQL "--" line comment inside it (a "#" comment
               # above, like this one, is fine); a "--" comment here would silently swallow
@@ -84,19 +92,25 @@ groups:
                 ),
                 totals AS (
                   SELECT count(*) AS total_offline FROM tiered
+                ),
+                report_rows AS (
+                  SELECT tier,
+                         (CASE tier
+                              WHEN 'lt1h' THEN 'Offline < 1 hour'
+                              WHEN 'lt12h' THEN 'Offline 1-12 hours'
+                              ELSE 'Offline > 12 hours'
+                          END || ' (' || count(*) || ' devices)') AS heading,
+                         string_agg(device_number || ' -- ' || owner_name || ' -- ' || hours_offline || ' hours', '~~~' ORDER BY device_number) AS device_list,
+                         (SELECT total_offline FROM totals) AS total_offline,
+                         1 AS matched
+                  FROM tiered
+                  GROUP BY tier
                 )
-                SELECT tier,
-                       (CASE tier
-                            WHEN 'lt1h' THEN 'Offline < 1 hour'
-                            WHEN 'lt12h' THEN 'Offline 1-12 hours'
-                            ELSE 'Offline > 12 hours'
-                        END || ' (' || count(*) || ' devices)') AS heading,
-                       string_agg(device_number || ' -- ' || owner_name || ' -- ' || hours_offline || ' hours', '~~~' ORDER BY device_number) AS device_list,
-                       (SELECT total_offline FROM totals) AS total_offline,
-                       1 AS matched
-                FROM tiered
-                GROUP BY tier
-                ORDER BY CASE tier WHEN 'gt12h' THEN 1 WHEN 'lt12h' THEN 2 ELSE 3 END
+                SELECT tier, heading, device_list, total_offline, matched FROM report_rows
+                UNION ALL
+                SELECT 'none', '', '', 0, 0
+                WHERE NOT EXISTS (SELECT 1 FROM report_rows)
+                ORDER BY CASE tier WHEN 'gt12h' THEN 1 WHEN 'lt12h' THEN 2 WHEN 'lt1h' THEN 3 ELSE 4 END
           - refId: B
             datasourceUid: __expr__
             model:
