@@ -15,10 +15,23 @@
 #
 # Deliberately uses only range/index/dot-field access plus the documented reReplaceAll
 # and data.ToJSON functions -- no Sprig-style helpers (dict/list/append/add), since
-# Grafana's alerting template engine doesn't guarantee those are available. All
+# Grafana's alerting template engine doesn't guarantee those are available (and Go's
+# text/template has no arithmetic operators at all, so counting must stay in SQL). All
 # counting/bucketing/formatting/ordering already happened in the "Offline devices
 # report" rule's SQL (see rules.yaml.tmpl); this template only assembles and JSON-encodes
 # the already-formatted rows.
+#
+# Because heading/device_list embed the per-device hours-offline count, their label
+# VALUES change on essentially every evaluation as that count drifts -- and since label
+# values are part of Grafana's alert instance identity (fingerprint), each change spins
+# up a brand-new instance while the previous one lingers "Firing" for a few more
+# evaluation cycles until it resolves. That overlap window means .Alerts.Firing can
+# legitimately contain two (or more) instances for the SAME tier at once, differing only
+# by a now-stale hour count -- seen in practice as e.g. "Offline 1-12 hours" appearing
+# twice in one message. Rather than a full label/identity redesign, each of the three
+# explicit per-tier passes below takes only the FIRST matching instance and ignores any
+# further duplicate for that same tier, which also gives us the required gt12h / lt12h /
+# lt1h ordering for free.
 apiVersion: 1
 
 templates:
@@ -31,8 +44,26 @@ templates:
       {{- $total = (index .Alerts.Firing 0).Labels.total_offline -}}
       {{- end -}}
       {{- $msg := printf "Offline Devices Report -- %s devices offline\n" $total -}}
+      {{- $doneGt12h := false -}}
       {{- range .Alerts.Firing -}}
+      {{- if and (eq .Labels.tier "gt12h") (not $doneGt12h) -}}
       {{- $msg = printf "%s\n------------------------------------\n%s\n------------------------------------\n%s\n" $msg .Labels.heading (reReplaceAll "~~~" "\n" .Labels.device_list) -}}
+      {{- $doneGt12h = true -}}
+      {{- end -}}
+      {{- end -}}
+      {{- $doneLt12h := false -}}
+      {{- range .Alerts.Firing -}}
+      {{- if and (eq .Labels.tier "lt12h") (not $doneLt12h) -}}
+      {{- $msg = printf "%s\n------------------------------------\n%s\n------------------------------------\n%s\n" $msg .Labels.heading (reReplaceAll "~~~" "\n" .Labels.device_list) -}}
+      {{- $doneLt12h = true -}}
+      {{- end -}}
+      {{- end -}}
+      {{- $doneLt1h := false -}}
+      {{- range .Alerts.Firing -}}
+      {{- if and (eq .Labels.tier "lt1h") (not $doneLt1h) -}}
+      {{- $msg = printf "%s\n------------------------------------\n%s\n------------------------------------\n%s\n" $msg .Labels.heading (reReplaceAll "~~~" "\n" .Labels.device_list) -}}
+      {{- $doneLt1h = true -}}
+      {{- end -}}
       {{- end -}}
       {"text": {{ data.ToJSON $msg }}}
       {{ end }}
