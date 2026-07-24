@@ -25,7 +25,7 @@ public class ItamLog implements Serializable {
     @ApiModelProperty("An ID of the device this entry is for")
     private Integer deviceId;
 
-    // Joined in for display; not persisted directly on this table
+    // Set once at creation time from the device's number; survives even if the device row is later deleted
     @ApiModelProperty(hidden = true)
     private String deviceNumber;
 

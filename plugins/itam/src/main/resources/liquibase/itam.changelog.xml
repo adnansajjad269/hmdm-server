@@ -151,4 +151,49 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="plugin-itam-24.07.2026-20:00" author="claude" context="common">
+        <comment>Make ITAM logs survive a hard device delete. deviceId's FK to devices(id) had no ON DELETE
+        clause, so Postgres defaulted to NO ACTION/RESTRICT: deleting a device from the Devices view would
+        fail outright with a foreign-key violation as soon as that device had any ITAM log rows. deviceNumber
+        was already a domain/mapper field, but only ever populated by a LEFT JOIN to devices at read time --
+        the join goes blank the moment the device row is gone. Persisting deviceNumber directly on each row
+        at creation time (backfilled here for existing rows) and dropping the FK entirely gives ITAM logs a
+        permanent, self-contained reference: device deletion can never be blocked by ITAM data, and old
+        entries keep displaying their device number correctly even after that device row -- and any device
+        row that later re-enrolls under the same number -- comes and goes. The FK's auto-generated name is
+        looked up dynamically rather than hardcoded, since Postgres's default naming isn't guaranteed across
+        installs that may have created the table slightly differently.</comment>
+        <sql>
+            ALTER TABLE plugin_itam_log ADD COLUMN IF NOT EXISTS deviceNumber VARCHAR(255);
+
+            UPDATE plugin_itam_log l
+            SET deviceNumber = d.number
+            FROM devices d
+            WHERE d.id = l.deviceId AND l.deviceNumber IS NULL;
+
+            CREATE INDEX IF NOT EXISTS plugin_itam_log_devicenumber_idx ON plugin_itam_log (deviceNumber);
+
+            DO $$
+            DECLARE
+                fk_name text;
+            BEGIN
+                SELECT tc.constraint_name INTO fk_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON kcu.constraint_name = tc.constraint_name AND kcu.table_name = tc.table_name
+                WHERE tc.table_name = 'plugin_itam_log'
+                  AND tc.constraint_type = 'FOREIGN KEY'
+                  AND kcu.column_name = 'deviceid'
+                LIMIT 1;
+                IF fk_name IS NOT NULL THEN
+                    EXECUTE format('ALTER TABLE plugin_itam_log DROP CONSTRAINT %I', fk_name);
+                END IF;
+            END $$;
+        </sql>
+        <rollback>
+            <!-- deviceNumber column and index are left in place on rollback (harmless to keep), and
+            re-adding the FK would fail on any row whose device has since been deleted. -->
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

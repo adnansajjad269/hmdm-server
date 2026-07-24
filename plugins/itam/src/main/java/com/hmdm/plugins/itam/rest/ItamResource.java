@@ -220,6 +220,7 @@ public class ItamResource {
 
             ItamLog log = new ItamLog();
             log.setDeviceId(request.getDeviceId());
+            log.setDeviceNumber(deviceNumber);
             log.setOwnerName(request.getOwnerName());
             log.setOwnershipDate(request.getOwnershipDate() != null ? request.getOwnershipDate() : new Date());
             log.setAssetStatus(request.getAssetStatus());

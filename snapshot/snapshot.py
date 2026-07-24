@@ -4,9 +4,12 @@
 Reads current rows from the Headwind `devices` table, derives battery level,
 charging state and an online boolean per device, and inserts one bucket-aligned
 row per device into device_status_history. Prunes rows past the retention
-window in a second transaction. Idempotent: sampled_at is floored to the cron
-bucket and the insert is ON CONFLICT DO NOTHING, so overlapping or repeated
-runs within the same bucket are no-ops.
+window, and also purges any device_number no longer present in `devices` at
+all (i.e. deleted from the Devices view) so it disappears from the Grafana
+dashboard within one cron cycle instead of waiting out the full retention
+window -- both in a second transaction. Idempotent: sampled_at is floored to
+the cron bucket and the insert is ON CONFLICT DO NOTHING, so overlapping or
+repeated runs within the same bucket are no-ops.
 
 All live-schema specifics (column names, info text vs jsonb, lastupdate
 epoch-millis vs seconds vs timestamptz) come from /etc/hmdm-stats/hmdm-stats.conf,
@@ -177,6 +180,17 @@ def main(argv):
 
         with contextlib.closing(psycopg2.connect(conf["dsn"])) as raw_db, raw_db as db:
             with db.cursor() as cur:
+                # Devices removed from the Devices view (a real hard delete of the `devices` row) should
+                # vanish from the Grafana dashboard promptly, not linger for the full retention window.
+                cur.execute(
+                    f'DELETE FROM device_status_history dsh '
+                    f'WHERE NOT EXISTS ('
+                    f'  SELECT 1 FROM {conf["devices_table"]} d '
+                    f'  WHERE d.{conf["number_col"]} = dsh.device_number'
+                    f')'
+                )
+                purged_deleted = cur.rowcount
+
                 cur.execute(
                     "DELETE FROM device_status_history "
                     "WHERE sampled_at < now() - make_interval(days => %s)",
@@ -188,9 +202,9 @@ def main(argv):
         return 2
 
     log.info(
-        "bucket=%s devices=%d inserted=%d skipped=%d parse_errors=%d pruned=%d",
+        "bucket=%s devices=%d inserted=%d skipped=%d parse_errors=%d purged_deleted=%d pruned=%d",
         bucket_ts.isoformat(), len(devices), inserted,
-        len(rows) - inserted, parse_errors, pruned,
+        len(rows) - inserted, parse_errors, purged_deleted, pruned,
     )
     return 0
 

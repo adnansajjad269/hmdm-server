@@ -31,12 +31,17 @@
         <result property="lastCheckIn" column="lastcheckin"/>
     </resultMap>
 
+    <!--
+    deviceNumber is a plain persisted column on this table (set at insert time from the device's number),
+    not a live join to devices; filtering/display here never depends on the device row still existing.
+    See the "24.07.2026-20:00" changelog changeset for why (ITAM logs must survive a hard device delete).
+    -->
     <sql id="listFilter">
         <where>
             l.customerid = #{customerId}
             AND l.deletedat IS NULL
             <if test="deviceId != null">AND l.deviceid = #{deviceId}</if>
-            <if test="deviceNumber != null and deviceNumber != ''">AND d.number ILIKE '%' || #{deviceNumber} || '%'</if>
+            <if test="deviceNumber != null and deviceNumber != ''">AND l.devicenumber ILIKE '%' || #{deviceNumber} || '%'</if>
             <if test="ownerName != null and ownerName != ''">AND l.ownername ILIKE '%' || #{ownerName} || '%'</if>
             <if test="assetStatus != null and assetStatus != ''">AND l.assetstatus = #{assetStatus}</if>
             <if test="deviceCondition != null and deviceCondition != ''">AND l.devicecondition = #{deviceCondition}</if>
@@ -47,9 +52,8 @@
     </sql>
 
     <select id="findAll" resultMap="itamLogMap">
-        SELECT l.*, d.number AS devicenumber, u.name AS loggedbyusername
+        SELECT l.*, u.name AS loggedbyusername
         FROM plugin_itam_log l
-        LEFT JOIN devices d ON d.id = l.deviceid
         LEFT JOIN users u ON u.id = l.loggedbyuserid
         <include refid="listFilter"/>
         ORDER BY l.createdat DESC
@@ -61,14 +65,12 @@
     <select id="countAll" resultType="long">
         SELECT count(*)
         FROM plugin_itam_log l
-        LEFT JOIN devices d ON d.id = l.deviceid
         <include refid="listFilter"/>
     </select>
 
     <select id="findLatestByDevice" resultMap="itamLogMap">
-        SELECT l.*, d.number AS devicenumber, u.name AS loggedbyusername
+        SELECT l.*, u.name AS loggedbyusername
         FROM plugin_itam_log l
-        LEFT JOIN devices d ON d.id = l.deviceid
         LEFT JOIN users u ON u.id = l.loggedbyuserid
         WHERE l.deviceid = #{deviceId} AND l.customerid = #{customerId} AND l.deletedat IS NULL
         ORDER BY l.createdat DESC
@@ -77,10 +79,10 @@
 
     <insert id="insert">
         INSERT INTO plugin_itam_log (
-            id, customerid, deviceid, ownername, ownershipdate, assetstatus,
+            id, customerid, deviceid, devicenumber, ownername, ownershipdate, assetstatus,
             devicecondition, batterycondition, comments, pictures, loggedbyuserid, createdat
         ) VALUES (
-            gen_random_uuid(), #{customerId}, #{deviceId}, #{ownerName}, #{ownershipDate}, #{assetStatus},
+            gen_random_uuid(), #{customerId}, #{deviceId}, #{deviceNumber}, #{ownerName}, #{ownershipDate}, #{assetStatus},
             #{deviceCondition}, #{batteryCondition}, #{comments},
             #{pictures, typeHandler=com.hmdm.plugins.itam.persistence.typehandler.JsonStringListTypeHandler},
             #{loggedByUserId}, NOW()
@@ -88,9 +90,8 @@
     </insert>
 
     <select id="findById" resultMap="itamLogMap">
-        SELECT l.*, d.number AS devicenumber, u.name AS loggedbyusername
+        SELECT l.*, u.name AS loggedbyusername
         FROM plugin_itam_log l
-        LEFT JOIN devices d ON d.id = l.deviceid
         LEFT JOIN users u ON u.id = l.loggedbyuserid
         WHERE l.id = CAST(#{id} AS UUID) AND l.customerid = #{customerId}
     </select>
