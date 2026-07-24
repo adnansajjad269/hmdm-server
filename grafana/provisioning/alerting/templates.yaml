@@ -1,7 +1,7 @@
 # Grafana file-provisioned notification template — static (no envsubst substitution
 # needed), installed as-is by install.sh. Referenced by the "hmdm-offline-report-webhook"
-# contact point's payloadTemplate setting (a full custom-payload webhook, not the
-# built-in "message" field) as {{ template "hmdm_offline_report" . }} -- this produces
+# contact point's settings.payload.template field (a full custom-payload webhook, not
+# the built-in "message" field) as {{ template "hmdm_offline_report" . }} -- this produces
 # the ENTIRE raw JSON body sent, e.g. Google Chat's {"text": "..."} shape, with nothing
 # added by Grafana (no title, no "Open in Grafana" button, no version footer).
 #

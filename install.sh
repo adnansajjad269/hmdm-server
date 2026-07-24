@@ -279,13 +279,20 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
         # A separate contact point for the offline-devices report (same URL, but with its
         # own fully custom JSON payload) -- kept distinct from hmdm-alerts so the tiered
         # report doesn't also apply to battery/pipeline-stale alerts. Uses the generic
-        # "webhook" type with a Custom Payload template (payloadTemplate), NOT the
-        # dedicated "googlechat" contact point type: googlechat wraps everything in
-        # Grafana's own fixed card UI (title, "Open in Grafana" button, version footer),
-        # none of which is controllable. payloadTemplate instead sends EXACTLY the JSON
-        # our template produces (see templates.yaml) -- e.g. Google Chat's plain
-        # {"text": "..."} shape -- with nothing added by Grafana. Works for any webhook
-        # consumer (Google Chat, Slack, Discord, a custom endpoint...), not just Chat.
+        # "webhook" type with a Custom Payload template, NOT the dedicated "googlechat"
+        # contact point type: googlechat wraps everything in Grafana's own fixed card UI
+        # (title, "Open in Grafana" button, version footer), none of which is controllable.
+        # The custom payload instead sends EXACTLY the JSON our template produces (see
+        # templates.yaml) -- e.g. Google Chat's plain {"text": "..."} shape -- with nothing
+        # added by Grafana. Works for any webhook consumer (Google Chat, Slack, Discord, a
+        # custom endpoint...), not just Chat.
+        # IMPORTANT: the settings field is the nested "payload: { template: ... }" object,
+        # NOT a flat "payloadTemplate" string -- that flat key doesn't exist in Grafana's
+        # webhook schema (github.com/grafana/alerting receivers/webhook/v1/config.go defines
+        # `Payload CustomPayload` with json tag "payload", and CustomPayload's own Template
+        # field has json tag "template"). A flat "payloadTemplate" key is silently ignored,
+        # and Grafana falls back to sending its default full alert JSON body instead --
+        # which is why Google Chat rejected it with "Unknown name \"receiver\"" etc. errors.
         if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "  - orgId: 1"
             echo "    name: hmdm-offline-report-webhook"
@@ -295,7 +302,8 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "        settings:"
             echo "          url: \"$ALERT_WEBHOOK_URL\""
             echo "          httpMethod: POST"
-            echo "          payloadTemplate: '{{ template \"hmdm_offline_report\" . }}'"
+            echo "          payload:"
+            echo "            template: '{{ template \"hmdm_offline_report\" . }}'"
         fi
     } >"$CP"
     chmod 640 "$CP"; chown root:grafana "$CP"
