@@ -24,7 +24,7 @@ groups:
           source: hmdm-stats
           report: offline-summary
         annotations:
-          summary: "{{ $labels.heading }} -- see the webhook/email body for the full device list."
+          summary: "Device {{ $labels.device_number }} (owner: {{ $labels.owner_name }}) is offline -- see the webhook/email body for the full report."
         data:
           - refId: A
             relativeTimeRange: { from: 21600, to: 0 }
@@ -33,34 +33,30 @@ groups:
               refId: A
               format: table
               rawQuery: true
-              # One row per non-empty offline tier (<1h / 1-12h / >12h), each already fully
-              # pre-formatted (heading with its count, and a newline-joined device list) so the
-              # notification template just has to print each row -- no counting/filtering/
-              # arithmetic needed in Grafana's template engine, which only reliably supports
-              # basic range/if/index, not Sprig-style helpers.
+              # One row PER OFFLINE DEVICE, not pre-aggregated by tier. device_number and
+              # owner_name are the only labels, and both are stable for a given device (owner
+              # rarely changes) -- hours_offline is the query's one numeric column, which
+              # Grafana carries as a per-instance VALUE, not a label. This distinction is the
+              # whole point: an alert instance's identity (fingerprint) is its label set, not
+              # its values, so hours_offline drifting every evaluation no longer creates a new
+              # instance each time it changes. An earlier version instead pre-aggregated by
+              # tier in SQL and put the formatted heading/device-list/hour-counts directly into
+              # labels -- since those label VALUES changed on almost every evaluation as hours
+              # drifted, Grafana treated each change as a new alert joining the group, which
+              # re-triggered a notification via group_interval (5m) almost every cycle instead
+              # of respecting the intended 4h repeat_interval. Tiering/counting/formatting now
+              # happens entirely in the notification template (see templates.yaml), which is
+              # unaffected by this problem since it runs once per notification, not per
+              # instance-identity comparison.
               # Only devices with a genuine current owner (per their latest non-deleted ITAM log
               # entry) are reported at all -- unassigned/stock devices (blank owner, "N/A", or no
               # ITAM log entry) can sit offline indefinitely without ever appearing here.
-              # The final SELECT always returns at least one row via a UNION ALL sentinel
-              # ("tier='none', matched=0") when report_rows is empty, so a genuinely empty
-              # result table never has to be handled downstream. Its matched=0 always fails
-              # the "gt 0" threshold, so it never itself fires or reaches the notification
-              # template -- zero real offline devices still correctly means zero firing
-              # instances and no webhook that cycle.
-              # sort_order is a plain output column (not an inline expression) specifically
-              # because Postgres disallows an ORDER BY expression after a UNION ALL -- it
-              # only allows plain output column names/positions there. An earlier version of
-              # this query used "ORDER BY CASE tier WHEN ... END" directly and Postgres
-              # rejected it with "invalid UNION/INTERSECT/EXCEPT ORDER BY clause".
-              # For a Grafana-managed alert with format: table, the response is only accepted
-              # as a valid "wide series" if it has EXACTLY ONE numeric column -- any string
-              # columns become row labels, but a second (or third) numeric column makes Grafana
-              # unable to pick "the" value field, and evaluation fails with the misleading
-              # "input data must be a wide series but got type not (input refid)" error. matched
-              # is the one column that must stay numeric (it feeds the "gt 0" threshold below);
-              # total_offline and sort_order are cast to text so they become labels instead --
-              # they're only ever read back out as label strings in the notification template
-              # and in ORDER BY, never used as numbers by Grafana itself.
+              # The sentinel row (device_number='__none__', hours_offline=-1) guarantees the
+              # query never returns zero rows -- format: table + reduce/threshold fails
+              # evaluation entirely on a genuinely empty result ("input data must be a wide
+              # series..." error) rather than cleanly treating it as "no data". The sentinel's
+              # -1 always fails the "gt -1" threshold below, so it never fires or reaches the
+              # notification template itself.
               # IMPORTANT: this rawSql uses YAML's ">" folded scalar, which joins wrapped lines
               # with a single space -- do not add a SQL "--" line comment inside it (a "#" comment
               # above, like this one, is fine); a "--" comment here would silently swallow
@@ -91,38 +87,15 @@ groups:
                     AND trim(ownername) <> ''
                     AND upper(trim(ownername)) <> 'N/A'
                 ),
-                tiered AS (
-                  SELECT o.device_number,
-                         ow.ownername AS owner_name,
-                         o.hours_offline,
-                         CASE WHEN o.hours_offline < 1 THEN 'lt1h'
-                              WHEN o.hours_offline < 12 THEN 'lt12h'
-                              ELSE 'gt12h' END AS tier
+                reportable AS (
+                  SELECT o.device_number, ow.ownername AS owner_name, o.hours_offline
                   FROM offline_devices o
                   JOIN owners ow ON ow.device_number = o.device_number
-                ),
-                totals AS (
-                  SELECT count(*) AS total_offline FROM tiered
-                ),
-                report_rows AS (
-                  SELECT tier,
-                         (CASE tier
-                              WHEN 'lt1h' THEN 'Offline < 1 hour'
-                              WHEN 'lt12h' THEN 'Offline 1-12 hours'
-                              ELSE 'Offline > 12 hours'
-                          END || ' (' || count(*) || ' devices)') AS heading,
-                         string_agg(device_number || ' -- ' || owner_name || ' -- ' || hours_offline || ' hours', '~~~' ORDER BY device_number) AS device_list,
-                         ((SELECT total_offline FROM totals))::text AS total_offline,
-                         1 AS matched,
-                         (CASE tier WHEN 'gt12h' THEN 1 WHEN 'lt12h' THEN 2 WHEN 'lt1h' THEN 3 ELSE 4 END)::text AS sort_order
-                  FROM tiered
-                  GROUP BY tier
                 )
-                SELECT tier, heading, device_list, total_offline, matched, sort_order FROM report_rows
+                SELECT device_number, owner_name, hours_offline FROM reportable
                 UNION ALL
-                SELECT 'none', '', '', '0', 0, '4'
-                WHERE NOT EXISTS (SELECT 1 FROM report_rows)
-                ORDER BY sort_order
+                SELECT '__none__', '', -1
+                WHERE NOT EXISTS (SELECT 1 FROM reportable)
           - refId: B
             datasourceUid: __expr__
             model:
@@ -137,9 +110,9 @@ groups:
               type: threshold
               expression: B
               conditions:
-                # "matched" is always 1 -- a row existing (i.e. a non-empty tier) is itself
-                # the condition; the real bucketing already happened in the SQL above.
-                - evaluator: { type: gt, params: [0] }
+                # hours_offline is always >= 0 for a real offline device; the sentinel's -1
+                # always fails this and never fires.
+                - evaluator: { type: gt, params: [-1] }
 
       - uid: hmdm-battery-warn
         title: Battery low (warn tier)

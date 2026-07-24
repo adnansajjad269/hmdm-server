@@ -5,33 +5,31 @@
 # the ENTIRE raw JSON body sent, e.g. Google Chat's {"text": "..."} shape, with nothing
 # added by Grafana (no title, no "Open in Grafana" button, no version footer).
 #
-# device_list is built in SQL with a "~~~" delimiter, NOT a real newline -- Grafana's
-# alerting pipeline appears to drop/blank an entire alert instance's labels when one of
-# them contains a raw newline (this is the likely cause of an earlier attempt where the
-# whole message rendered blank). The delimiter is converted back to a real newline only
-# here, inside the final string, right before it's JSON-encoded -- never as a label
-# value. data.ToJSON handles all JSON string escaping (quotes, newlines, etc.), so the
-# output is always valid JSON regardless of what device/owner names contain.
+# The "Offline devices report" rule (see rules.yaml.tmpl) now returns ONE ROW PER OFFLINE
+# DEVICE with only device_number/owner_name as labels and hours_offline as the query's
+# numeric value -- deliberately NOT pre-aggregated by tier in SQL. An earlier version
+# instead built one pre-formatted row per tier (heading + newline-joined device list)
+# directly as label values; since those label values changed on nearly every evaluation
+# as the embedded hour counts drifted, and an alert instance's identity (fingerprint) in
+# Grafana/Alertmanager is its label set, each drift was treated as a new alert joining the
+# group -- which re-triggered a notification via group_interval (5m) on almost every
+# evaluation cycle instead of respecting the configured 4h repeat_interval. All
+# tiering/counting/formatting has moved here, into the template, which runs once per
+# notification and has no effect on alert identity.
 #
-# Deliberately uses only range/index/dot-field access plus the documented reReplaceAll
-# and data.ToJSON functions -- no Sprig-style helpers (dict/list/append/add), since
-# Grafana's alerting template engine doesn't guarantee those are available (and Go's
-# text/template has no arithmetic operators at all, so counting must stay in SQL). All
-# counting/bucketing/formatting/ordering already happened in the "Offline devices
-# report" rule's SQL (see rules.yaml.tmpl); this template only assembles and JSON-encodes
-# the already-formatted rows.
+# Uses Grafana's coll.Slice/coll.Append (build a list by appending, without mutating the
+# original -- see https://grafana.com/docs/grafana/latest/alerting/configure-notifications/template-notifications/reference/)
+# plus the built-in "join" function and Go template's native "len", so no arithmetic
+# operators are needed anywhere (Go's text/template has none built in, and Grafana's own
+# helper set isn't guaranteed to include Sprig-style add/sub). The three tier passes below
+# each build their own list via range+if, then only emit a section at all if that list is
+# non-empty, and the fixed gt12h -> lt12h -> lt1h emission order is what gives the required
+# ordering, independent of whatever order .Alerts.Firing happens to be in.
 #
-# Because heading/device_list embed the per-device hours-offline count, their label
-# VALUES change on essentially every evaluation as that count drifts -- and since label
-# values are part of Grafana's alert instance identity (fingerprint), each change spins
-# up a brand-new instance while the previous one lingers "Firing" for a few more
-# evaluation cycles until it resolves. That overlap window means .Alerts.Firing can
-# legitimately contain two (or more) instances for the SAME tier at once, differing only
-# by a now-stale hour count -- seen in practice as e.g. "Offline 1-12 hours" appearing
-# twice in one message. Rather than a full label/identity redesign, each of the three
-# explicit per-tier passes below takes only the FIRST matching instance and ignores any
-# further duplicate for that same tier, which also gives us the required gt12h / lt12h /
-# lt1h ordering for free.
+# device lines are joined with a real "\n" via "join" directly (not the "~~~" delimiter
+# trick the old design needed) since these are now built as ordinary template-local list
+# values, never stored as a label -- so there's no risk of Grafana blanking a label that
+# contains a newline.
 apiVersion: 1
 
 templates:
@@ -39,31 +37,30 @@ templates:
     name: hmdm_offline_report
     template: |
       {{ define "hmdm_offline_report" }}
-      {{- $total := "" -}}
-      {{- if gt (len .Alerts.Firing) 0 -}}
-      {{- $total = (index .Alerts.Firing 0).Labels.total_offline -}}
-      {{- end -}}
-      {{- $msg := printf "Offline Devices Report -- %s devices offline\n" $total -}}
-      {{- $doneGt12h := false -}}
+      {{- $total := len .Alerts.Firing -}}
+      {{- $msg := printf "Offline Devices Report -- %d devices offline\n" $total -}}
+      {{- $gt12h := coll.Slice -}}
+      {{- $lt12h := coll.Slice -}}
+      {{- $lt1h := coll.Slice -}}
       {{- range .Alerts.Firing -}}
-      {{- if and (eq .Labels.tier "gt12h") (not $doneGt12h) -}}
-      {{- $msg = printf "%s\n------------------------------------\n%s\n------------------------------------\n%s\n" $msg .Labels.heading (reReplaceAll "~~~" "\n" .Labels.device_list) -}}
-      {{- $doneGt12h = true -}}
+      {{- $hrs := .Values.B -}}
+      {{- $line := printf "%s -- %s -- %.0f hours" .Labels.device_number .Labels.owner_name $hrs -}}
+      {{- if ge $hrs 12.0 -}}
+      {{- $gt12h = coll.Append $line $gt12h -}}
+      {{- else if ge $hrs 1.0 -}}
+      {{- $lt12h = coll.Append $line $lt12h -}}
+      {{- else -}}
+      {{- $lt1h = coll.Append $line $lt1h -}}
       {{- end -}}
       {{- end -}}
-      {{- $doneLt12h := false -}}
-      {{- range .Alerts.Firing -}}
-      {{- if and (eq .Labels.tier "lt12h") (not $doneLt12h) -}}
-      {{- $msg = printf "%s\n------------------------------------\n%s\n------------------------------------\n%s\n" $msg .Labels.heading (reReplaceAll "~~~" "\n" .Labels.device_list) -}}
-      {{- $doneLt12h = true -}}
+      {{- if gt (len $gt12h) 0 -}}
+      {{- $msg = printf "%s\n------------------------------------\nOffline > 12 hours (%d devices)\n------------------------------------\n%s\n" $msg (len $gt12h) (join "\n" $gt12h) -}}
       {{- end -}}
+      {{- if gt (len $lt12h) 0 -}}
+      {{- $msg = printf "%s\n------------------------------------\nOffline 1-12 hours (%d devices)\n------------------------------------\n%s\n" $msg (len $lt12h) (join "\n" $lt12h) -}}
       {{- end -}}
-      {{- $doneLt1h := false -}}
-      {{- range .Alerts.Firing -}}
-      {{- if and (eq .Labels.tier "lt1h") (not $doneLt1h) -}}
-      {{- $msg = printf "%s\n------------------------------------\n%s\n------------------------------------\n%s\n" $msg .Labels.heading (reReplaceAll "~~~" "\n" .Labels.device_list) -}}
-      {{- $doneLt1h = true -}}
-      {{- end -}}
+      {{- if gt (len $lt1h) 0 -}}
+      {{- $msg = printf "%s\n------------------------------------\nOffline < 1 hour (%d devices)\n------------------------------------\n%s\n" $msg (len $lt1h) (join "\n" $lt1h) -}}
       {{- end -}}
       {"text": {{ data.ToJSON $msg }}}
       {{ end }}
