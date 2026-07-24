@@ -162,8 +162,13 @@
         entries keep displaying their device number correctly even after that device row -- and any device
         row that later re-enrolls under the same number -- comes and goes. The FK's auto-generated name is
         looked up dynamically rather than hardcoded, since Postgres's default naming isn't guaranteed across
-        installs that may have created the table slightly differently.</comment>
-        <sql>
+        installs that may have created the table slightly differently. splitStatements="false" is required
+        here: Liquibase's own statement-splitter breaks on every literal ";" before the SQL ever reaches
+        Postgres, including the ones inside the DO $$ ... $$ block below (e.g. "fk_name text;"), which cuts
+        the dollar-quoted block in half and fails app startup with "Unterminated dollar quote". Disabling the
+        splitter sends this whole block as one string over the wire, which Postgres's own simple-query
+        protocol executes correctly as a sequence of semicolon-separated statements.</comment>
+        <sql splitStatements="false">
             ALTER TABLE plugin_itam_log ADD COLUMN IF NOT EXISTS deviceNumber VARCHAR(255);
 
             UPDATE plugin_itam_log l
