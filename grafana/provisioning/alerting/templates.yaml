@@ -1,12 +1,24 @@
 # Grafana file-provisioned notification template — static (no envsubst substitution
 # needed), installed as-is by install.sh. Referenced by the "hmdm-offline-report-webhook"
-# contact point's message setting as {{ template "hmdm_offline_report" . }}.
+# contact point's payloadTemplate setting (a full custom-payload webhook, not the
+# built-in "message" field) as {{ template "hmdm_offline_report" . }} -- this produces
+# the ENTIRE raw JSON body sent, e.g. Google Chat's {"text": "..."} shape, with nothing
+# added by Grafana (no title, no "Open in Grafana" button, no version footer).
 #
-# Deliberately uses only range/index/dot-field access -- no Sprig-style helpers
-# (dict/list/append/add), since Grafana's alerting template engine doesn't guarantee
-# those are available. All counting/bucketing/formatting already happened in the
-# "Offline devices report" rule's SQL (see rules.yaml.tmpl), so this template only
-# has to print each already-formatted row.
+# device_list is built in SQL with a "~~~" delimiter, NOT a real newline -- Grafana's
+# alerting pipeline appears to drop/blank an entire alert instance's labels when one of
+# them contains a raw newline (this is the likely cause of an earlier attempt where the
+# whole message rendered blank). The delimiter is converted back to a real newline only
+# here, inside the final string, right before it's JSON-encoded -- never as a label
+# value. data.ToJSON handles all JSON string escaping (quotes, newlines, etc.), so the
+# output is always valid JSON regardless of what device/owner names contain.
+#
+# Deliberately uses only range/index/dot-field access plus the documented reReplaceAll
+# and data.ToJSON functions -- no Sprig-style helpers (dict/list/append/add), since
+# Grafana's alerting template engine doesn't guarantee those are available. All
+# counting/bucketing/formatting/ordering already happened in the "Offline devices
+# report" rule's SQL (see rules.yaml.tmpl); this template only assembles and JSON-encodes
+# the already-formatted rows.
 apiVersion: 1
 
 templates:
@@ -14,11 +26,13 @@ templates:
     name: hmdm_offline_report
     template: |
       {{ define "hmdm_offline_report" }}
-      Offline Devices Report -- {{ (index .Alerts.Firing 0).Labels.total_offline }} devices offline
-      {{ range .Alerts.Firing }}
-      ------------------------------------
-      {{ .Labels.heading }}
-      ------------------------------------
-      {{ .Labels.device_list }}
-      {{ end }}
+      {{- $total := "" -}}
+      {{- if gt (len .Alerts.Firing) 0 -}}
+      {{- $total = (index .Alerts.Firing 0).Labels.total_offline -}}
+      {{- end -}}
+      {{- $msg := printf "Offline Devices Report -- %s devices offline\n" $total -}}
+      {{- range .Alerts.Firing -}}
+      {{- $msg = printf "%s\n------------------------------------\n%s\n------------------------------------\n%s\n" $msg .Labels.heading (reReplaceAll "~~~" "\n" .Labels.device_list) -}}
+      {{- end -}}
+      {"text": {{ data.ToJSON $msg }}}
       {{ end }}

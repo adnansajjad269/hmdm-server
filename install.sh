@@ -58,11 +58,6 @@ GRAFANA_URL=${GRAFANA_URL:-http://$GRAFANA_BIND_ADDR:3000}
 # a proxy (Caddy/nginx) forwards that path to Grafana on GRAFANA_BIND_ADDR:3000.
 # Leave empty to keep the plain-HTTP-only, iframe-on-HTTP-panels-only behavior.
 GRAFANA_PUBLIC_URL=${GRAFANA_PUBLIC_URL:-}
-# Contact point type for the offline-devices report webhook (see ALERT_WEBHOOK_URL).
-# "webhook" (default) sends Grafana's generic JSON body. Set to "googlechat" when
-# ALERT_WEBHOOK_URL is a Google Chat Space incoming-webhook URL -- Google Chat expects
-# a different payload shape that only the "googlechat" contact point type produces.
-ALERT_OFFLINE_REPORT_TYPE=${ALERT_OFFLINE_REPORT_TYPE:-webhook}
 case "$SNAPSHOT_INTERVAL_MIN" in
     ''|*[!0-9]*) echo "SNAPSHOT_INTERVAL_MIN must be a number" >&2; exit 1 ;;
 esac
@@ -282,24 +277,25 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "          httpMethod: POST"
         fi
         # A separate contact point for the offline-devices report (same URL, but with its
-        # own custom-formatted message template) -- kept distinct from hmdm-alerts so the
-        # tiered report template doesn't also apply to battery/pipeline-stale alerts.
-        # Type is configurable (ALERT_OFFLINE_REPORT_TYPE, default "webhook") because a
-        # generic "webhook" receiver's fixed JSON body is NOT compatible with chat
-        # integrations like Google Chat, which expect their own payload shape -- set it to
-        # "googlechat" when ALERT_WEBHOOK_URL is a Google Chat Space incoming-webhook URL.
+        # own fully custom JSON payload) -- kept distinct from hmdm-alerts so the tiered
+        # report doesn't also apply to battery/pipeline-stale alerts. Uses the generic
+        # "webhook" type with a Custom Payload template (payloadTemplate), NOT the
+        # dedicated "googlechat" contact point type: googlechat wraps everything in
+        # Grafana's own fixed card UI (title, "Open in Grafana" button, version footer),
+        # none of which is controllable. payloadTemplate instead sends EXACTLY the JSON
+        # our template produces (see templates.yaml) -- e.g. Google Chat's plain
+        # {"text": "..."} shape -- with nothing added by Grafana. Works for any webhook
+        # consumer (Google Chat, Slack, Discord, a custom endpoint...), not just Chat.
         if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "  - orgId: 1"
             echo "    name: hmdm-offline-report-webhook"
             echo "    receivers:"
             echo "      - uid: hmdm-offline-report-webhook"
-            echo "        type: ${ALERT_OFFLINE_REPORT_TYPE:-webhook}"
+            echo "        type: webhook"
             echo "        settings:"
             echo "          url: \"$ALERT_WEBHOOK_URL\""
-            if [ "${ALERT_OFFLINE_REPORT_TYPE:-webhook}" = "webhook" ]; then
-                echo "          httpMethod: POST"
-            fi
-            echo "          message: '{{ template \"hmdm_offline_report\" . }}'"
+            echo "          httpMethod: POST"
+            echo "          payloadTemplate: '{{ template \"hmdm_offline_report\" . }}'"
         fi
     } >"$CP"
     chmod 640 "$CP"; chown root:grafana "$CP"

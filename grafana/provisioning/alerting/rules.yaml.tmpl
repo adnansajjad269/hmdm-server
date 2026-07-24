@@ -91,12 +91,12 @@ groups:
                             WHEN 'lt12h' THEN 'Offline 1-12 hours'
                             ELSE 'Offline > 12 hours'
                         END || ' (' || count(*) || ' devices)') AS heading,
-                       string_agg(device_number || ' -- ' || owner_name || ' -- ' || hours_offline || ' hours', E'\n' ORDER BY device_number) AS device_list,
+                       string_agg(device_number || ' -- ' || owner_name || ' -- ' || hours_offline || ' hours', '~~~' ORDER BY device_number) AS device_list,
                        (SELECT total_offline FROM totals) AS total_offline,
                        1 AS matched
                 FROM tiered
                 GROUP BY tier
-                ORDER BY CASE tier WHEN 'lt1h' THEN 1 WHEN 'lt12h' THEN 2 ELSE 3 END
+                ORDER BY CASE tier WHEN 'gt12h' THEN 1 WHEN 'lt12h' THEN 2 ELSE 3 END
           - refId: B
             datasourceUid: __expr__
             model:
