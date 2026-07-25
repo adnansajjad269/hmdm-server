@@ -146,23 +146,16 @@ which now points at the native tab first. If you deploy from this repo's
 source, pass `--skip-webpanel` to `install.sh`.
 
 Grafana no longer allows anonymous access once it's reverse-proxied onto a
-public HTTPS domain (see `grafana-overrides.ini.tmpl`), so by default the
-Analytics tab's iframe shows Grafana's own login page the first time a
-browser visits it. Optional SSO closes that gap without reintroducing
-anonymous access: the webapp's `GrafanaJwtService` generates an RSA key pair
-under `<base.directory>/grafana-jwt/` on first use (logging the public key's
-path at startup) and `GrafanaSsoResource`
-(`/rest/private/plugins/grafana/token`) mints a ~60s RS256 JWT for the current
-user, gated by the same `analytics` permission that already controls whether
-the tab is shown at all. `AnalyticsTabController` fetches that token and
-appends it to the iframe URL as `&auth_token=...`, which Grafana's
-`[auth.jwt]` `url_login` feature accepts in place of a login. To enable it,
-set `GRAFANA_JWT_PUBLIC_KEY_FILE` in hmdm-stats' `.env` to the path
-`GrafanaJwtService` logged, then re-run `install.sh` — it copies that public
-key into Grafana's own config directory and turns `auth.jwt` on. Leave it
-unset (the default) to keep requiring a separate Grafana login inside the
-iframe; nothing else in Grafana (alerting, notifications, settings, other
-dashboards) is ever affected by this either way.
+public HTTPS domain (see `grafana-overrides.ini.tmpl`), so the Analytics
+tab's iframe shows Grafana's own login page the first time a browser visits
+it; logging in there once persists a normal Grafana session for that
+browser afterward. A JWT-based SSO (mint a short-lived token for the signed-in
+Headwind user, append it to the iframe URL, let Grafana's `auth.jwt`
+`url_login` feature log it in automatically) was attempted and reverted:
+that Grafana feature has open, unresolved upstream bugs (grafana/grafana#90200,
+#91464) where a valid JWT is silently rejected with no session cookie set and
+no error logged anywhere, regardless of configuration. `auth.jwt` is left
+explicitly disabled in `grafana-overrides.ini.tmpl`.
 
 ## Why not the built-in `deviceinfo` plugin?
 

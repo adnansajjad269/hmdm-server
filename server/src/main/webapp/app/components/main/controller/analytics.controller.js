@@ -1,6 +1,6 @@
 // Localization completed
 angular.module('headwind-kiosk')
-    .controller('AnalyticsTabController', function ($scope, $window, $sce, $http, authService) {
+    .controller('AnalyticsTabController', function ($scope, $window, $sce, authService) {
         // Grafana no longer allows anonymous access (see grafana-overrides.ini.tmpl) now that
         // it's reachable through the public reverse proxy rather than being LAN-only, so the
         // iframe below only ever gets a Grafana session if the browser already has one. Gating
@@ -8,6 +8,14 @@ angular.module('headwind-kiosk')
         // tab already sitting behind Headwind's own authenticated routes: an unauthenticated
         // visitor is never even given the iframe src, rather than relying solely on Grafana's
         // own (now-required) login prompt inside the frame.
+        //
+        // A JWT-based SSO was attempted here (auth_token query param via Grafana's auth.jwt
+        // url_login feature) so the iframe could log straight in as the Headwind user without a
+        // separate Grafana login. It was reverted: Grafana's own url_login feature has open,
+        // unresolved upstream bugs (grafana/grafana#90200, #91464) matching exactly what we hit
+        // -- a valid JWT is silently rejected with no session cookie set and no error logged,
+        // redirecting back to the login page. Users now just log into Grafana once per browser
+        // session inside the iframe, same as visiting Grafana directly.
         if (!authService.isLoggedIn()) {
             $scope.grafanaAvailable = false;
             return;
@@ -24,23 +32,9 @@ angular.module('headwind-kiosk')
         var grafanaBaseUrl = isHttps
             ? $window.location.origin + '/grafana'
             : $window.location.protocol + '//' + $window.location.hostname + ':3000';
-        var dashboardPath = '/d/hmdm-fleet/hmdm-fleet-status?kiosk&orgId=1';
 
         $scope.grafanaAvailable = true;
-
-        // Try to fetch a short-lived Grafana SSO token (see GrafanaSsoResource /
-        // GrafanaJwtService) so the iframe logs straight into Grafana via its auth.jwt
-        // url_login feature, without a separate Grafana login prompt. This endpoint is gated
-        // by the same "analytics" permission already required to see this tab at all, so it
-        // never grants any access beyond what the user could already reach. If SSO isn't set
-        // up server-side (no RSA key pair yet) or the request fails for any reason, we fall
-        // back to the plain dashboard URL -- Grafana's own login prompt still works fine
-        // inside the iframe, this is purely a convenience on top of that.
-        $http.get('rest/private/plugins/grafana/token').then(function (response) {
-            var token = response.data && response.data.data && response.data.data.token;
-            var url = token ? (dashboardPath + '&auth_token=' + encodeURIComponent(token)) : dashboardPath;
-            $scope.grafanaUrl = $sce.trustAsResourceUrl(grafanaBaseUrl + url);
-        }, function () {
-            $scope.grafanaUrl = $sce.trustAsResourceUrl(grafanaBaseUrl + dashboardPath);
-        });
+        $scope.grafanaUrl = $sce.trustAsResourceUrl(
+            grafanaBaseUrl + '/d/hmdm-fleet/hmdm-fleet-status?kiosk&orgId=1'
+        );
     });
