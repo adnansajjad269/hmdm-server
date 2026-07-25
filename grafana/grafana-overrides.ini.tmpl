@@ -1,8 +1,18 @@
 # Keys merged into /etc/grafana/grafana.ini by install.sh (configparser merge,
 # backup taken first). Rendered with envsubst before merging.
-# SECURITY: anonymous Viewer access is enabled so the injected Headwind
-# "Analytics" tab can iframe the dashboard without a login prompt. This is only
-# acceptable because http_addr binds to the LAN — never port-forward :3000.
+# SECURITY: anonymous access is disabled -- every Grafana page (dashboards,
+# alerting, notifications, settings) requires login. This used to be enabled so
+# the injected Headwind "Analytics" tab could iframe the dashboard without a
+# login prompt, on the assumption Grafana would only ever be reachable on the
+# LAN (http_addr binds there, never port-forward :3000 directly). That
+# assumption no longer holds once Grafana is reverse-proxied onto a public
+# HTTPS domain (see HMDM-STATS-README.md / analytics.controller.js) -- anonymous
+# Viewer access at that point means anyone on the internet, not just the LAN,
+# so it was turned off. The Analytics tab now requires a real Grafana session
+# in the browser; the panel's own AnalyticsTabController additionally only
+# renders the iframe at all when the Headwind user is signed in, but the
+# iframe itself still needs Grafana's own login if that browser has no
+# separate Grafana session yet.
 
 [server]
 http_addr = ${GRAFANA_BIND_ADDR}
@@ -13,9 +23,7 @@ allow_embedding = true
 cookie_samesite = lax
 
 [auth.anonymous]
-enabled = true
-org_name = Main Org.
-org_role = Viewer
+enabled = false
 
 [analytics]
 reporting_enabled = false

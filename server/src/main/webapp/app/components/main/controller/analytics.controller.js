@@ -1,6 +1,18 @@
 // Localization completed
 angular.module('headwind-kiosk')
-    .controller('AnalyticsTabController', function ($scope, $window, $sce) {
+    .controller('AnalyticsTabController', function ($scope, $window, $sce, authService) {
+        // Grafana no longer allows anonymous access (see grafana-overrides.ini.tmpl) now that
+        // it's reachable through the public reverse proxy rather than being LAN-only, so the
+        // iframe below only ever gets a Grafana session if the browser already has one. Gating
+        // on authService.isLoggedIn() here is a deliberate extra check requested on top of this
+        // tab already sitting behind Headwind's own authenticated routes: an unauthenticated
+        // visitor is never even given the iframe src, rather than relying solely on Grafana's
+        // own (now-required) login prompt inside the frame.
+        if (!authService.isLoggedIn()) {
+            $scope.grafanaAvailable = false;
+            return;
+        }
+
         // Grafana (hmdm-stats) is deployed on the same host, LAN-only, port 3000 -- it is
         // never reachable directly from outside. On an HTTP panel we can iframe it directly
         // at that LAN port. On an HTTPS panel, browsers block that as mixed content, so we

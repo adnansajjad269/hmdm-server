@@ -1123,6 +1123,7 @@ document.localization ['en_US'] = {
     'permission.edit_files': 'Manage files',
 
     'analytics.trouble.loading': 'Dashboard not loading?',
+    'analytics.signin.required': 'Please sign in to view the Analytics dashboard.',
 
     'yes': 'yes',
     'no': 'no'
