@@ -70,7 +70,7 @@ groups:
                 ),
                 offline_devices AS (
                   SELECT device_number,
-                         GREATEST(0, FLOOR((extract(epoch FROM (now() - COALESCE(last_update, timestamptz 'epoch'))) / 3600.0)::numeric))::int AS hours_offline
+                         GREATEST(0, ROUND((extract(epoch FROM (now() - COALESCE(last_update, timestamptz 'epoch'))) / 3600.0)::numeric, 1)) AS hours_offline
                   FROM latest
                   WHERE NOT online
                 ),

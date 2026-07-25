@@ -46,7 +46,7 @@ templates:
       {{- $lt1h := coll.Slice -}}
       {{- range .Alerts.Firing -}}
       {{- $hrs := .Values.B -}}
-      {{- $line := printf "%s -- %s -- %.0f hours" .Labels.device_number .Labels.owner_name $hrs -}}
+      {{- $line := printf "%s -- %s -- %.1f hours" .Labels.device_number .Labels.owner_name $hrs -}}
       {{- if ge $hrs 12.0 -}}
       {{- $gt12h = coll.Append $line $gt12h -}}
       {{- else if ge $hrs 1.0 -}}
