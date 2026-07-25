@@ -5,7 +5,7 @@
 # the ENTIRE raw JSON body sent, e.g. Google Chat's {"text": "..."} shape, with nothing
 # added by Grafana (no title, no "Open in Grafana" button, no version footer).
 #
-# The "Offline devices report" rule (see rules.yaml.tmpl) now returns ONE ROW PER OFFLINE
+# The "Offline devices report" rule (see rules.yaml.tmpl) returns ONE ROW PER OFFLINE
 # DEVICE with only device_number/owner_name as labels and hours_offline as the query's
 # numeric value -- deliberately NOT pre-aggregated by tier in SQL. An earlier version
 # instead built one pre-formatted row per tier (heading + newline-joined device list)
@@ -14,22 +14,24 @@
 # Grafana/Alertmanager is its label set, each drift was treated as a new alert joining the
 # group -- which re-triggered a notification via group_interval (5m) on almost every
 # evaluation cycle instead of respecting the configured 4h repeat_interval. All
-# tiering/counting/formatting has moved here, into the template, which runs once per
+# tiering/counting/formatting happens here, in the template, which runs once per
 # notification and has no effect on alert identity.
 #
 # Uses Grafana's coll.Slice/coll.Append (build a list by appending, without mutating the
-# original -- see https://grafana.com/docs/grafana/latest/alerting/configure-notifications/template-notifications/reference/)
-# plus the built-in "join" function and Go template's native "len", so no arithmetic
-# operators are needed anywhere (Go's text/template has none built in, and Grafana's own
-# helper set isn't guaranteed to include Sprig-style add/sub). The three tier passes below
-# each build their own list via range+if, then only emit a section at all if that list is
-# non-empty, and the fixed gt12h -> lt12h -> lt1h emission order is what gives the required
-# ordering, independent of whatever order .Alerts.Firing happens to be in.
+# original) plus Go template's native "len", so no arithmetic operators are needed anywhere
+# (Go's text/template has none built in, and Grafana's own helper set isn't guaranteed to
+# include Sprig-style add/sub). The three tier passes below each build their own list via
+# range+if, then only emit a section at all if that list is non-empty, and the fixed
+# gt12h -> lt12h -> lt1h emission order is what gives the required ordering, independent of
+# whatever order .Alerts.Firing happens to be in.
 #
-# device lines are joined with a real "\n" via "join" directly (not the "~~~" delimiter
-# trick the old design needed) since these are now built as ordinary template-local list
-# values, never stored as a label -- so there's no risk of Grafana blanking a label that
-# contains a newline.
+# IMPORTANT: device lines are appended into the message with a second, plain "range" loop,
+# NOT Grafana's "join" function -- confirmed via a live production error
+# ("wrong type for value; expected []string; got []interface {}") that Grafana's join
+# requires a strictly-typed []string, while coll.Slice/coll.Append produce a generic
+# []interface{}; passing one of those lists to join fails a runtime type check even though
+# building and counting (len) the same list works fine. A plain range sidesteps this
+# entirely since it works on any slice type regardless of element type.
 apiVersion: 1
 
 templates:
@@ -54,13 +56,22 @@ templates:
       {{- end -}}
       {{- end -}}
       {{- if gt (len $gt12h) 0 -}}
-      {{- $msg = printf "%s\n------------------------------------\nOffline > 12 hours (%d devices)\n------------------------------------\n%s\n" $msg (len $gt12h) (join "\n" $gt12h) -}}
+      {{- $msg = printf "%s\n------------------------------------\nOffline > 12 hours (%d devices)\n------------------------------------\n" $msg (len $gt12h) -}}
+      {{- range $gt12h -}}
+      {{- $msg = printf "%s%s\n" $msg . -}}
+      {{- end -}}
       {{- end -}}
       {{- if gt (len $lt12h) 0 -}}
-      {{- $msg = printf "%s\n------------------------------------\nOffline 1-12 hours (%d devices)\n------------------------------------\n%s\n" $msg (len $lt12h) (join "\n" $lt12h) -}}
+      {{- $msg = printf "%s\n------------------------------------\nOffline 1-12 hours (%d devices)\n------------------------------------\n" $msg (len $lt12h) -}}
+      {{- range $lt12h -}}
+      {{- $msg = printf "%s%s\n" $msg . -}}
+      {{- end -}}
       {{- end -}}
       {{- if gt (len $lt1h) 0 -}}
-      {{- $msg = printf "%s\n------------------------------------\nOffline < 1 hour (%d devices)\n------------------------------------\n%s\n" $msg (len $lt1h) (join "\n" $lt1h) -}}
+      {{- $msg = printf "%s\n------------------------------------\nOffline < 1 hour (%d devices)\n------------------------------------\n" $msg (len $lt1h) -}}
+      {{- range $lt1h -}}
+      {{- $msg = printf "%s%s\n" $msg . -}}
+      {{- end -}}
       {{- end -}}
       {"text": {{ data.ToJSON $msg }}}
       {{ end }}
