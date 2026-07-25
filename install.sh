@@ -310,6 +310,16 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "    receivers:"
             echo "      - uid: hmdm-offline-report-webhook"
             echo "        type: webhook"
+            # Grafana normally also sends a follow-up "resolved" notification when a firing
+            # alert clears (e.g. the device that was offline came back online) -- for this
+            # tiered digest report that's just a content-free "0 devices offline" message with
+            # no tier sections, and every resolve/re-fire cycle from a flapping device sends its
+            # own notification independent of the 4h repeat_interval (repeat_interval only
+            # governs reminders of an alert that's still firing, not resolve transitions or
+            # brand-new firing episodes). Disabling it here keeps the webhook to firing-state
+            # reports only, matching the original "check every 5m, notify at most every 4h
+            # while something's actually offline" intent.
+            echo "        disableResolveMessage: true"
             echo "        settings:"
             echo "          url: \"$ALERT_WEBHOOK_URL\""
             echo "          httpMethod: POST"
