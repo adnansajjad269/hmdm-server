@@ -58,6 +58,12 @@ GRAFANA_URL=${GRAFANA_URL:-http://$GRAFANA_BIND_ADDR:3000}
 # a proxy (Caddy/nginx) forwards that path to Grafana on GRAFANA_BIND_ADDR:3000.
 # Leave empty to keep the plain-HTTP-only, iframe-on-HTTP-panels-only behavior.
 GRAFANA_PUBLIC_URL=${GRAFANA_PUBLIC_URL:-}
+# Optional: absolute path to the PUBLIC half of the RSA key pair the Headwind webapp generates
+# for Grafana SSO (GrafanaJwtService logs the exact path at startup, typically
+# <base.directory>/grafana-jwt/public.pem). When set and the file exists, the Analytics tab's
+# iframe logs straight into Grafana as the signed-in Headwind user instead of showing Grafana's
+# own login prompt. Leave empty to keep requiring a separate Grafana login inside the iframe.
+GRAFANA_JWT_PUBLIC_KEY_FILE=${GRAFANA_JWT_PUBLIC_KEY_FILE:-}
 case "$SNAPSHOT_INTERVAL_MIN" in
     ''|*[!0-9]*) echo "SNAPSHOT_INTERVAL_MIN must be a number" >&2; exit 1 ;;
 esac
@@ -210,6 +216,36 @@ if [ -n "$GRAFANA_PUBLIC_URL" ]; then
         echo "root_url = ${GRAFANA_PUBLIC_URL%/}/"
         echo "serve_from_sub_path = true"
     } >>"$OVERRIDES"
+fi
+# optional Grafana SSO for the Analytics tab iframe, only when the Headwind webapp has already
+# generated its RSA key pair and GRAFANA_JWT_PUBLIC_KEY_FILE points at the public half of it (see
+# GrafanaJwtService -- the path is logged at Headwind startup, typically
+# <base.directory>/grafana-jwt/public.pem). Deliberately fails soft: if the file isn't there yet
+# (Headwind not deployed/started yet, or the var isn't set), auth.jwt is simply left disabled and
+# the Analytics tab falls back to Grafana's own login prompt inside the iframe -- never a hard
+# install failure, and never silently re-enabling anonymous access as a workaround.
+GRAFANA_JWT_KEY_FILE=/etc/grafana/grafana-jwt-public.pem
+if [ -n "${GRAFANA_JWT_PUBLIC_KEY_FILE:-}" ] && [ -f "$GRAFANA_JWT_PUBLIC_KEY_FILE" ]; then
+    install -m 644 -o root -g grafana "$GRAFANA_JWT_PUBLIC_KEY_FILE" "$GRAFANA_JWT_KEY_FILE"
+    {
+        echo "[auth.jwt]"
+        echo "enabled = true"
+        echo "url_login = true"
+        echo "username_claim = sub"
+        echo "auto_sign_up = true"
+        echo "key_file = $GRAFANA_JWT_KEY_FILE"
+    } >>"$OVERRIDES"
+    echo "== Grafana SSO enabled: iframe will log in as the Headwind user, no separate Grafana login =="
+else
+    rm -f "$GRAFANA_JWT_KEY_FILE"
+    # Explicitly disabled (not just omitted) so a stale "enabled = true" from an earlier
+    # successful run doesn't linger if the key file later goes missing -- the configparser
+    # merge below only sets keys present here, it never removes ones from a previous run.
+    {
+        echo "[auth.jwt]"
+        echo "enabled = false"
+    } >>"$OVERRIDES"
+    echo "== Grafana SSO not configured (GRAFANA_JWT_PUBLIC_KEY_FILE unset or file missing) -- Analytics tab will show Grafana's own login prompt inside the iframe =="
 fi
 python3 - "$GRAFANA_INI" "$OVERRIDES" <<'PYEOF'
 import configparser, sys

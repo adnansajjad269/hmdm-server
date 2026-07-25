@@ -48,5 +48,6 @@ public class PrivateRestModule extends ServletModule {
         this.bind(IconFileResource.class);
         this.bind(HintResource.class);
         this.bind(UserRoleResource.class);
+        this.bind(GrafanaSsoResource.class);
     }
 }
