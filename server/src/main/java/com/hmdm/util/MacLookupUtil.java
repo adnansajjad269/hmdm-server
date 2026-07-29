@@ -18,7 +18,7 @@ import java.util.Map;
  * contain "LAAM" are resolved via an admin-maintained lookup file -- {@code maclookup.csv}, a plain
  * two-column CSV (BSSID, area name) uploaded through the existing Files module UI, which lands at
  * {@code <files.directory>/maclookup.csv} and is thus also reachable at {@code /files/maclookup.csv}
- * (see DownloadFilesServlet). A BSSID with no matching row is reported as "LOCATION NOT FOUND".
+ * (see DownloadFilesServlet). A BSSID with no matching row is reported as "NOT FOUND".
  *
  * The file is re-read on every call rather than cached: it's a small, infrequently-changing file an
  * admin re-uploads occasionally, and the Devices grid is a low-traffic internal admin view, so the
@@ -28,7 +28,7 @@ public class MacLookupUtil {
 
     private static final Logger logger = LoggerFactory.getLogger(MacLookupUtil.class);
     private static final String EXTERNAL = "EXTERNAL";
-    private static final String NOT_FOUND = "LOCATION NOT FOUND";
+    private static final String NOT_FOUND = "NOT FOUND";
 
     private MacLookupUtil() {
     }
