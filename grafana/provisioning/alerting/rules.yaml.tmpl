@@ -8,10 +8,23 @@
 apiVersion: 1
 
 groups:
+  # A separate group with its own 4h interval, deliberately NOT the same group as the 5m rules
+  # below -- all rules in one Grafana-provisioned group share a single evaluation interval, and
+  # the offline-report rule needs to be evaluated ONLY once every 4 hours, not every 5 minutes.
+  # This is the actual mechanism behind "strictly every 4h, silent otherwise, no reaction to
+  # devices flapping in between": Alertmanager's grouping (group_wait/group_interval/
+  # repeat_interval) is fundamentally reactive to state CHANGES it observes at each evaluation,
+  # so no combination of those settings can produce a true wall-clock heartbeat on top of a rule
+  # that itself evaluates every 5 minutes -- a device going offline or coming back online between
+  # scheduled report times would always be visible as a change at the next 5m tick and trigger
+  # its own notification. Making the rule only evaluate every 4h means Grafana simply never looks
+  # in between, so there is nothing for it to react to -- the report becomes a point-in-time
+  # snapshot taken exactly every 4 hours, matching "current status ... at the trigger timestamp"
+  # rather than continuous monitoring.
   - orgId: 1
-    name: hmdm-fleet
+    name: hmdm-fleet-offline-report
     folder: HMDM Stats
-    interval: 5m
+    interval: 4h
     rules:
       - uid: hmdm-offline-report
         title: Offline devices report
@@ -114,6 +127,11 @@ groups:
                 # always fails this and never fires.
                 - evaluator: { type: gt, params: [-1] }
 
+  - orgId: 1
+    name: hmdm-fleet
+    folder: HMDM Stats
+    interval: 5m
+    rules:
       - uid: hmdm-battery-warn
         title: Battery low (warn tier)
         condition: C

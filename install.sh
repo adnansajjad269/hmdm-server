@@ -310,6 +310,13 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "    receivers:"
             echo "      - uid: hmdm-offline-report-webhook"
             echo "        type: webhook"
+            # A strict "every 4h, silent if nothing offline, no reaction to devices flapping
+            # in between" cadence (see rules.yaml.tmpl's hmdm-fleet-offline-report group,
+            # interval: 4h) requires resolved notifications to be fully suppressed too: without
+            # this, a device coming back online exactly at a 4h evaluation tick would still
+            # produce an unwanted "resolved"/"0 devices offline" notification of its own,
+            # breaking the silent bypass when everything is online.
+            echo "        disableResolveMessage: true"
             echo "        settings:"
             echo "          url: \"$ALERT_WEBHOOK_URL\""
             echo "          httpMethod: POST"
