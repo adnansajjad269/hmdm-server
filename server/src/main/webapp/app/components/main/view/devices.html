@@ -447,7 +447,10 @@
                 <span>{{device.wifiArea}}</span>
             </td>
             <td ng-if="settings.columnDisplayedLocation">
-                <span>{{device.location}}</span>
+                <span ng-if="!device.locationMapsUrl">{{device.location}}</span>
+                <span ng-if="device.locationMapsUrl">{{device.locationTimestamp}} &lt;&gt;
+                    <a ng-href="{{device.locationMapsUrl}}" target="_blank" rel="noopener">VIEW</a>
+                </span>
             </td>
 
             <td class="deviceActions">

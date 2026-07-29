@@ -226,6 +226,25 @@ angular.module('headwind-kiosk')
             }
         };
 
+        // device.location is "DD/MM HH:MI <> lat, lon" (see DeviceMapper.xml's locationLog subquery).
+        // Splits that into the timestamp prefix (unchanged) and a Google Maps URL built from the
+        // trailing "lat, lon" pair, so the grid can show "<timestamp> <> VIEW" with VIEW linking out
+        // instead of printing the raw coordinates. Returns nulls if location doesn't match that shape
+        // (e.g. no location logged yet), so the caller can fall back to showing it as plain text.
+        var parseLocationForMap = function (location) {
+            if (!location) {
+                return {timestamp: null, mapsUrl: null};
+            }
+            var match = /^(.*)<>\s*(-?[0-9.]+),\s*(-?[0-9.]+)\s*$/.exec(location);
+            if (!match) {
+                return {timestamp: null, mapsUrl: null};
+            }
+            return {
+                timestamp: match[1].replace(/\s+$/, ''),
+                mapsUrl: 'https://maps.google.com/?q=' + match[2] + ',' + match[3]
+            };
+        };
+
         var checkExpiryTime = function() {
             if ($scope.commonSettings.expiryTime) {
                 var expiryDays = ($scope.commonSettings.expiryTime - new Date()) / 86400000;
@@ -368,6 +387,10 @@ angular.module('headwind-kiosk')
                         device.displayedPhone = resolvedPhone[0];
                         device.phoneTooltip = resolvedPhone[1];
                         device.phoneTooltipClass = resolvedPhone[2];
+
+                        var parsedLocation = parseLocationForMap(device.location);
+                        device.locationTimestamp = parsedLocation.timestamp;
+                        device.locationMapsUrl = parsedLocation.mapsUrl;
 
                         if ($scope.accountExpired) {
                             if (counter == 3) {
