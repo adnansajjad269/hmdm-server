@@ -201,4 +201,20 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="plugin-itam-29.07.2026-10:00" author="claude" context="common">
+        <comment>Add a "Team" field: Inbound/Outbound/Return/Volunteer/Others. Mandatory for new entries
+        (enforced at the app layer in ItamResource, same as assetStatus/deviceCondition/batteryCondition),
+        but nullable here and left NULL for every existing row -- old logs were created before this field
+        existed and are intentionally not backfilled with any value.</comment>
+        <sql>
+            ALTER TABLE plugin_itam_log ADD COLUMN IF NOT EXISTS team VARCHAR(20);
+            ALTER TABLE plugin_itam_log ADD CONSTRAINT plugin_itam_log_team_chk
+                CHECK (team IS NULL OR team IN ('Inbound', 'Outbound', 'Return', 'Volunteer', 'Others'));
+        </sql>
+        <rollback>
+            ALTER TABLE plugin_itam_log DROP CONSTRAINT IF EXISTS plugin_itam_log_team_chk;
+            ALTER TABLE plugin_itam_log DROP COLUMN IF EXISTS team;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

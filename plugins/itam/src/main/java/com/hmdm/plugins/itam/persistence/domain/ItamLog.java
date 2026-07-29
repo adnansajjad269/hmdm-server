@@ -32,6 +32,9 @@ public class ItamLog implements Serializable {
     @ApiModelProperty("Owner name, or null/\"N/A\" for unassigned stock")
     private String ownerName;
 
+    @ApiModelProperty("Inbound | Outbound | Return | Volunteer | Others; null for logs created before this field existed")
+    private String team;
+
     @ApiModelProperty("Date the current owner took possession")
     private Date ownershipDate;
 
@@ -104,6 +107,14 @@ public class ItamLog implements Serializable {
 
     public void setOwnerName(String ownerName) {
         this.ownerName = ownerName;
+    }
+
+    public String getTeam() {
+        return team;
+    }
+
+    public void setTeam(String team) {
+        this.team = team;
     }
 
     public Date getOwnershipDate() {

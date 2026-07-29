@@ -60,6 +60,13 @@ public class DeviceView {
     private final DeviceInfoView deviceInfo;
 
     /**
+     * Computed "WiFi Area" value for the Devices grid (see MacLookupUtil) -- set explicitly by
+     * DeviceResource after construction, since it depends on the maclookup.csv lookup table rather
+     * than anything on the Device object itself.
+     */
+    private String wifiArea;
+
+    /**
      * <p>Constructs new <code>DeviceView</code> instance. This implementation does nothing.</p>
      */
     public DeviceView(Device device) {
@@ -208,5 +215,14 @@ public class DeviceView {
     @ApiModelProperty("Latest known location of the device, parsed from device log")
     public String getLocation() {
         return device.getLocation();
+    }
+
+    @ApiModelProperty("EXTERNAL, a maclookup.csv-resolved area name, or LOCATION NOT FOUND -- see MacLookupUtil")
+    public String getWifiArea() {
+        return wifiArea;
+    }
+
+    public void setWifiArea(String wifiArea) {
+        this.wifiArea = wifiArea;
     }
 }

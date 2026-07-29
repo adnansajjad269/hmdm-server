@@ -42,6 +42,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
             deviceId: null,
             deviceFilter: '',
             ownerName: '',
+            team: '',
             assetStatus: '',
             deviceCondition: '',
             batteryCondition: '',
@@ -53,6 +54,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
 
         $scope.assetStatuses = ['IN_USE', 'IN_STOCK', 'UNDER_REPAIR', 'RETIRED'];
         $scope.conditions = ['GOOD', 'BAD'];
+        $scope.teams = ['Inbound', 'Outbound', 'Return', 'Volunteer', 'Others'];
 
         $scope.$watch('paging.pageNum', loadData);
 
@@ -67,6 +69,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                 pageSize: $scope.paging.pageSize,
                 deviceNumber: $scope.paging.deviceFilter || null,
                 ownerName: $scope.paging.ownerName || null,
+                team: $scope.paging.team || null,
                 assetStatus: $scope.paging.assetStatus || null,
                 deviceCondition: $scope.paging.deviceCondition || null,
                 batteryCondition: $scope.paging.batteryCondition || null,
@@ -155,6 +158,7 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
         $scope.entry = {
             deviceId: null,
             ownerName: '',
+            team: '',
             ownershipDate: new Date(),
             assetStatus: 'IN_USE',
             deviceCondition: 'GOOD',
@@ -164,6 +168,10 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
 
         $scope.assetStatuses = ['IN_USE', 'IN_STOCK', 'UNDER_REPAIR', 'RETIRED'];
         $scope.conditions = ['GOOD', 'BAD'];
+        // Deliberately no default selection here (unlike assetStatus/conditions above) -- Team must
+        // always be an explicit choice, every time the form opens, never pre-filled or carried over
+        // from a previous entry for the same device.
+        $scope.teams = ['Inbound', 'Outbound', 'Return', 'Volunteer', 'Others'];
 
         $scope.dateLocked = false;
         $scope.telemetry = null;
@@ -643,11 +651,16 @@ angular.module('plugin-itam', ['ngResource', 'ui.bootstrap', 'ui.router', 'ncy-a
                 $scope.errorMessage = localization.localize('plugin.itam.error.no.pictures');
                 return;
             }
+            if (!$scope.entry.team) {
+                $scope.errorMessage = localization.localize('plugin.itam.error.team.required');
+                return;
+            }
 
             var formData = new FormData();
             formData.append('data', JSON.stringify({
                 deviceId: $scope.entry.deviceId,
                 ownerName: $scope.entry.ownerName || null,
+                team: $scope.entry.team,
                 ownershipDate: $scope.entry.ownershipDate ? $scope.entry.ownershipDate.getTime() : null,
                 assetStatus: $scope.entry.assetStatus,
                 deviceCondition: $scope.entry.deviceCondition,

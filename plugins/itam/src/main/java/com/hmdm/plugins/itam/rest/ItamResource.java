@@ -29,6 +29,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -39,6 +40,8 @@ public class ItamResource {
 
     private static final Logger logger = LoggerFactory.getLogger(ItamResource.class);
     private static final int MAX_PICTURES = 5;
+    private static final List<String> VALID_TEAMS =
+            Arrays.asList("Inbound", "Outbound", "Return", "Volunteer", "Others");
 
     private final ItamDAO itamDAO;
     private final ItamPictureStorage pictureStorage;
@@ -78,6 +81,7 @@ public class ItamResource {
     public javax.ws.rs.core.Response export(@QueryParam("deviceId") Integer deviceId,
                                              @QueryParam("deviceNumber") String deviceNumber,
                                              @QueryParam("ownerName") String ownerName,
+                                             @QueryParam("team") String team,
                                              @QueryParam("assetStatus") String assetStatus,
                                              @QueryParam("deviceCondition") String deviceCondition,
                                              @QueryParam("batteryCondition") String batteryCondition,
@@ -90,6 +94,7 @@ public class ItamResource {
         filter.setDeviceId(deviceId);
         filter.setDeviceNumber(deviceNumber);
         filter.setOwnerName(ownerName);
+        filter.setTeam(team);
         filter.setAssetStatus(assetStatus);
         filter.setDeviceCondition(deviceCondition);
         filter.setBatteryCondition(batteryCondition);
@@ -101,12 +106,13 @@ public class ItamResource {
 
         StreamingOutput stream = (OutputStream output) -> {
             PrintWriter writer = new PrintWriter(output, true, StandardCharsets.UTF_8);
-            writer.println("Device,Owner,Asset Status,Ownership Date,Device Condition,Battery Condition,Comments,Logged By,Created At");
+            writer.println("Device,Owner,Team,Asset Status,Ownership Date,Device Condition,Battery Condition,Comments,Logged By,Created At");
             List<ItamLog> records = itamDAO.findAll(filter);
             for (ItamLog log : records) {
                 writer.println(String.join(",",
                         csv(log.getDeviceNumber()),
                         csv(log.getOwnerName()),
+                        csv(log.getTeam()),
                         csv(log.getAssetStatus()),
                         csv(log.getOwnershipDate() == null ? "" : dateFormat.format(log.getOwnershipDate())),
                         csv(log.getDeviceCondition()),
@@ -187,8 +193,12 @@ public class ItamResource {
         try {
             ItamLogCreateRequest request = objectMapper.readValue(dataJson, ItamLogCreateRequest.class);
             if (request.getDeviceId() == null || request.getAssetStatus() == null
-                    || request.getDeviceCondition() == null || request.getBatteryCondition() == null) {
+                    || request.getDeviceCondition() == null || request.getBatteryCondition() == null
+                    || request.getTeam() == null) {
                 return Response.ERROR("Missing required fields");
+            }
+            if (!VALID_TEAMS.contains(request.getTeam())) {
+                return Response.ERROR("Invalid team");
             }
             if (pictureParts == null || pictureParts.isEmpty()) {
                 return Response.ERROR("At least one picture is required");
@@ -222,6 +232,7 @@ public class ItamResource {
             log.setDeviceId(request.getDeviceId());
             log.setDeviceNumber(deviceNumber);
             log.setOwnerName(request.getOwnerName());
+            log.setTeam(request.getTeam());
             log.setOwnershipDate(request.getOwnershipDate() != null ? request.getOwnershipDate() : new Date());
             log.setAssetStatus(request.getAssetStatus());
             log.setDeviceCondition(request.getDeviceCondition());

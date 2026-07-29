@@ -18,6 +18,7 @@ public class ItamLogFilter implements Serializable {
     private Integer deviceId;
     private String deviceNumber;
     private String ownerName;
+    private String team;
     private String assetStatus;
     private String deviceCondition;
     private String batteryCondition;
@@ -59,6 +60,14 @@ public class ItamLogFilter implements Serializable {
 
     public void setOwnerName(String ownerName) {
         this.ownerName = ownerName;
+    }
+
+    public String getTeam() {
+        return team;
+    }
+
+    public void setTeam(String team) {
+        this.team = team;
     }
 
     public String getAssetStatus() {

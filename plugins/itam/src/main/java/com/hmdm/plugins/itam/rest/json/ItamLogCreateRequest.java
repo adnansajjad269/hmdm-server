@@ -15,6 +15,7 @@ public class ItamLogCreateRequest implements Serializable {
 
     private Integer deviceId;
     private String ownerName;
+    private String team;
     private Date ownershipDate;
     private String assetStatus;
     private String deviceCondition;
@@ -35,6 +36,14 @@ public class ItamLogCreateRequest implements Serializable {
 
     public void setOwnerName(String ownerName) {
         this.ownerName = ownerName;
+    }
+
+    public String getTeam() {
+        return team;
+    }
+
+    public void setTeam(String team) {
+        this.team = team;
     }
 
     public Date getOwnershipDate() {

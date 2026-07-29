@@ -8,6 +8,7 @@
         <result property="deviceId" column="deviceid"/>
         <result property="deviceNumber" column="devicenumber"/>
         <result property="ownerName" column="ownername"/>
+        <result property="team" column="team"/>
         <result property="ownershipDate" column="ownershipdate"/>
         <result property="assetStatus" column="assetstatus"/>
         <result property="deviceCondition" column="devicecondition"/>
@@ -43,6 +44,7 @@
             <if test="deviceId != null">AND l.deviceid = #{deviceId}</if>
             <if test="deviceNumber != null and deviceNumber != ''">AND l.devicenumber ILIKE '%' || #{deviceNumber} || '%'</if>
             <if test="ownerName != null and ownerName != ''">AND l.ownername ILIKE '%' || #{ownerName} || '%'</if>
+            <if test="team != null and team != ''">AND l.team = #{team}</if>
             <if test="assetStatus != null and assetStatus != ''">AND l.assetstatus = #{assetStatus}</if>
             <if test="deviceCondition != null and deviceCondition != ''">AND l.devicecondition = #{deviceCondition}</if>
             <if test="batteryCondition != null and batteryCondition != ''">AND l.batterycondition = #{batteryCondition}</if>
@@ -79,10 +81,10 @@
 
     <insert id="insert">
         INSERT INTO plugin_itam_log (
-            id, customerid, deviceid, devicenumber, ownername, ownershipdate, assetstatus,
+            id, customerid, deviceid, devicenumber, ownername, team, ownershipdate, assetstatus,
             devicecondition, batterycondition, comments, pictures, loggedbyuserid, createdat
         ) VALUES (
-            gen_random_uuid(), #{customerId}, #{deviceId}, #{deviceNumber}, #{ownerName}, #{ownershipDate}, #{assetStatus},
+            gen_random_uuid(), #{customerId}, #{deviceId}, #{deviceNumber}, #{ownerName}, #{team}, #{ownershipDate}, #{assetStatus},
             #{deviceCondition}, #{batteryCondition}, #{comments},
             #{pictures, typeHandler=com.hmdm.plugins.itam.persistence.typehandler.JsonStringListTypeHandler},
             #{loggedByUserId}, NOW()

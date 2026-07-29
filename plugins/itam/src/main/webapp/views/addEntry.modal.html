@@ -35,6 +35,14 @@
         </div>
 
         <div class="form-group">
+            <label localized>plugin.itam.field.team</label> <span class="text-danger">*</span>
+            <select class="form-control" ng-model="entry.team" required>
+                <option value="" disabled localized>plugin.itam.placeholder.team.select</option>
+                <option ng-repeat="t in teams" value="{{t}}">{{t}}</option>
+            </select>
+        </div>
+
+        <div class="form-group">
             <label localized>plugin.itam.field.assetStatus</label>
             <select class="form-control" ng-model="entry.assetStatus">
                 <option ng-repeat="s in assetStatuses" value="{{s}}">{{s}}</option>

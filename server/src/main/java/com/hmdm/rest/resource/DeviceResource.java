@@ -22,6 +22,7 @@
 package com.hmdm.rest.resource;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -46,6 +47,7 @@ import com.hmdm.rest.json.view.devicelist.DeviceListView;
 import com.hmdm.rest.json.view.devicelist.DeviceView;
 import com.hmdm.security.SecurityContext;
 import com.hmdm.security.SecurityException;
+import com.hmdm.util.MacLookupUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -66,6 +68,7 @@ public class DeviceResource {
     private ConfigurationFileDAO configurationFileDAO;
     private CommonDAO commonDAO;
     private UnsecureDAO unsecureDAO;
+    private String filesDirectory;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -79,13 +82,15 @@ public class DeviceResource {
                           PushService pushService,
                           ConfigurationFileDAO configurationFileDAO,
                           CommonDAO commonDAO,
-                          UnsecureDAO unsecureDAO) {
+                          UnsecureDAO unsecureDAO,
+                          @Named("files.directory") String filesDirectory) {
         this.deviceDAO = deviceDAO;
         this.configurationDAO = configurationDAO;
         this.pushService = pushService;
         this.configurationFileDAO = configurationFileDAO;
         this.commonDAO = commonDAO;
         this.unsecureDAO = unsecureDAO;
+        this.filesDirectory = filesDirectory;
     }
 
     // =================================================================================================================
@@ -146,6 +151,10 @@ public class DeviceResource {
                 .filter(d -> d.getConfigurationId() != null)
                 .map(DeviceView::new)
                 .collect(Collectors.toList());
+        for (DeviceView deviceView : deviceViews) {
+            deviceView.setWifiArea(MacLookupUtil.resolveWifiArea(
+                    filesDirectory, deviceView.getWifiSsid(), deviceView.getWifiBssid()));
+        }
         PaginatedData<DeviceView> devicesPage = new PaginatedData<>(deviceViews, devices.getTotalItemsCount());
 
         DeviceListView view = new DeviceListView(configIdToConfigurationsMap.values(), devicesPage);
@@ -167,6 +176,8 @@ public class DeviceResource {
         try {
             Device device = this.deviceDAO.getDeviceByNumber(number);
             DeviceView deviceView = new DeviceView(device);
+            deviceView.setWifiArea(MacLookupUtil.resolveWifiArea(
+                    filesDirectory, deviceView.getWifiSsid(), deviceView.getWifiBssid()));
             return Response.OK(deviceView);
         } catch (Exception e) {
             log.error("Cannot find device by number: " + number);

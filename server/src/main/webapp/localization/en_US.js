@@ -654,7 +654,7 @@ document.localization ['en_US'] = {
     'form.settings.common.serial': 'Serial number',
     'form.settings.common.publicip': 'IP address',
     'form.settings.common.wifiSsid': 'WiFi SSID',
-    'form.settings.common.wifiBssid': 'WiFi BSSID',
+    'form.settings.common.wifiBssid': 'WiFi Area',
     'form.settings.common.location': 'Location',
 
     'form.settings.design.title': 'Default Design',
@@ -878,7 +878,7 @@ document.localization ['en_US'] = {
     'table.heading.device.serial': 'Serial number',
     'table.heading.device.publicip': 'IP address',
     'table.heading.device.wifiSsid': 'WiFi SSID',
-    'table.heading.device.wifiBssid': 'WiFi BSSID',
+    'table.heading.device.wifiBssid': 'WiFi Area',
     'table.heading.device.location': 'Location',
     'table.heading.device.actions': 'Actions',
 
