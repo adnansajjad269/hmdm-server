@@ -1,132 +1,23 @@
 # Grafana file-provisioned alert rules — rendered by install.sh with an explicit
 # envsubst variable list (${BATTERY_WARN} ${BATTERY_CRIT} ${ONLINE_THRESHOLD_SECONDS})
 # so Grafana macros like $__timeFilter are untouched. OFFLINE_ALERT_SECONDS is no
-# longer used here -- the offline-report rule below reports every offline device,
-# tiered by duration, rather than firing past a single threshold.
+# longer used here.
 # UIDs are hardcoded so re-provisioning updates rules instead of duplicating them.
 # The folder "HMDM Stats" (uid hmdm-stats) is created by the dashboard provider.
+#
+# The tiered "Offline devices report" used to live here as a Grafana alert rule
+# (interval: 4h) fanned out through a webhook contact point + Go notification
+# template. It was retired (see snapshot/offline_report.py) because Grafana's rule
+# `interval` (how often the query re-runs) and Alertmanager's `repeat_interval`
+# (a separate clock that just re-sends the LAST notification for an unresolved
+# alert, without re-querying) inevitably drift out of phase when both are set to
+# the same 4h -- a repeat-interval resend can fire with stale, pre-recovery data
+# moments before the next real evaluation would have caught the device coming
+# back online. A plain cron job that queries fresh data on every run has no such
+# state to drift.
 apiVersion: 1
 
 groups:
-  # A separate group with its own 4h interval, deliberately NOT the same group as the 5m rules
-  # below -- all rules in one Grafana-provisioned group share a single evaluation interval, and
-  # the offline-report rule needs to be evaluated ONLY once every 4 hours, not every 5 minutes.
-  # This is the actual mechanism behind "strictly every 4h, silent otherwise, no reaction to
-  # devices flapping in between": Alertmanager's grouping (group_wait/group_interval/
-  # repeat_interval) is fundamentally reactive to state CHANGES it observes at each evaluation,
-  # so no combination of those settings can produce a true wall-clock heartbeat on top of a rule
-  # that itself evaluates every 5 minutes -- a device going offline or coming back online between
-  # scheduled report times would always be visible as a change at the next 5m tick and trigger
-  # its own notification. Making the rule only evaluate every 4h means Grafana simply never looks
-  # in between, so there is nothing for it to react to -- the report becomes a point-in-time
-  # snapshot taken exactly every 4 hours, matching "current status ... at the trigger timestamp"
-  # rather than continuous monitoring.
-  - orgId: 1
-    name: hmdm-fleet-offline-report
-    folder: HMDM Stats
-    interval: 4h
-    rules:
-      - uid: hmdm-offline-report
-        title: Offline devices report
-        condition: C
-        for: 0s
-        noDataState: OK
-        execErrState: Alerting
-        labels:
-          severity: warning
-          source: hmdm-stats
-          report: offline-summary
-        annotations:
-          summary: "Device {{ $labels.device_number }} (owner: {{ $labels.owner_name }}) is offline -- see the webhook/email body for the full report."
-        data:
-          - refId: A
-            relativeTimeRange: { from: 21600, to: 0 }
-            datasourceUid: hmdm-postgres
-            model:
-              refId: A
-              format: table
-              rawQuery: true
-              # One row PER OFFLINE DEVICE, not pre-aggregated by tier. device_number and
-              # owner_name are the only labels, and both are stable for a given device (owner
-              # rarely changes) -- hours_offline is the query's one numeric column, which
-              # Grafana carries as a per-instance VALUE, not a label. This distinction is the
-              # whole point: an alert instance's identity (fingerprint) is its label set, not
-              # its values, so hours_offline drifting every evaluation no longer creates a new
-              # instance each time it changes. An earlier version instead pre-aggregated by
-              # tier in SQL and put the formatted heading/device-list/hour-counts directly into
-              # labels -- since those label VALUES changed on almost every evaluation as hours
-              # drifted, Grafana treated each change as a new alert joining the group, which
-              # re-triggered a notification via group_interval (5m) almost every cycle instead
-              # of respecting the intended 4h repeat_interval. Tiering/counting/formatting now
-              # happens entirely in the notification template (see templates.yaml), which is
-              # unaffected by this problem since it runs once per notification, not per
-              # instance-identity comparison.
-              # Only devices with a genuine current owner (per their latest non-deleted ITAM log
-              # entry) are reported at all -- unassigned/stock devices (blank owner, "N/A", or no
-              # ITAM log entry) can sit offline indefinitely without ever appearing here.
-              # The sentinel row (device_number='__none__', hours_offline=-1) guarantees the
-              # query never returns zero rows -- format: table + reduce/threshold fails
-              # evaluation entirely on a genuinely empty result ("input data must be a wide
-              # series..." error) rather than cleanly treating it as "no data". The sentinel's
-              # -1 always fails the "gt -1" threshold below, so it never fires or reaches the
-              # notification template itself.
-              # IMPORTANT: this rawSql uses YAML's ">" folded scalar, which joins wrapped lines
-              # with a single space -- do not add a SQL "--" line comment inside it (a "#" comment
-              # above, like this one, is fine); a "--" comment here would silently swallow
-              # everything up to the next real newline, since folding removes the line breaks a
-              # "--" comment depends on to end.
-              rawSql: >
-                WITH latest AS (
-                  SELECT DISTINCT ON (dsh.device_number) dsh.device_number, dsh.online, dsh.last_update
-                  FROM device_status_history dsh
-                  ORDER BY dsh.device_number, dsh.sampled_at DESC
-                ),
-                offline_devices AS (
-                  SELECT device_number,
-                         GREATEST(0, ROUND((extract(epoch FROM (now() - COALESCE(last_update, timestamptz 'epoch'))) / 3600.0)::numeric, 1)) AS hours_offline
-                  FROM latest
-                  WHERE NOT online
-                ),
-                latest_owner AS (
-                  SELECT DISTINCT ON (d.number) d.number AS device_number, l.ownername
-                  FROM devices d
-                  JOIN plugin_itam_log l ON l.deviceid = d.id AND l.deletedat IS NULL
-                  ORDER BY d.number, l.createdat DESC
-                ),
-                owners AS (
-                  SELECT device_number, ownername
-                  FROM latest_owner
-                  WHERE ownername IS NOT NULL
-                    AND trim(ownername) <> ''
-                    AND upper(trim(ownername)) <> 'N/A'
-                ),
-                reportable AS (
-                  SELECT o.device_number, ow.ownername AS owner_name, o.hours_offline
-                  FROM offline_devices o
-                  JOIN owners ow ON ow.device_number = o.device_number
-                )
-                SELECT device_number, owner_name, hours_offline FROM reportable
-                UNION ALL
-                SELECT '__none__', '', -1
-                WHERE NOT EXISTS (SELECT 1 FROM reportable)
-          - refId: B
-            datasourceUid: __expr__
-            model:
-              refId: B
-              type: reduce
-              expression: A
-              reducer: last
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              refId: C
-              type: threshold
-              expression: B
-              conditions:
-                # hours_offline is always >= 0 for a real offline device; the sentinel's -1
-                # always fails this and never fires.
-                - evaluator: { type: gt, params: [-1] }
-
   - orgId: 1
     name: hmdm-fleet
     folder: HMDM Stats
@@ -241,10 +132,14 @@ groups:
                 - evaluator: { type: gt, params: [${ONLINE_THRESHOLD_SECONDS}] }
 
 # File-provisioning only adds/updates rules matching a UID present above -- it does NOT
-# delete a rule whose UID disappeared from an earlier version of this file. The old
-# single-threshold "Device offline too long" rule (uid hmdm-offline-1h) predates the
-# tiered "Offline devices report" rule and must be explicitly retired here, or it keeps
-# firing forever alongside the new one.
+# delete a rule whose UID disappeared from an earlier version of this file. Both of
+# these predate the current rule set and must be explicitly retired here, or they keep
+# firing forever alongside it:
+#   - hmdm-offline-1h: the old single-threshold "Device offline too long" rule.
+#   - hmdm-offline-report: the tiered "Offline devices report" rule, replaced by the
+#     standalone cron job in snapshot/offline_report.py (see the comment above).
 deleteRules:
   - orgId: 1
     uid: hmdm-offline-1h
+  - orgId: 1
+    uid: hmdm-offline-report

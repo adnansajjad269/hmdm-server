@@ -5,7 +5,7 @@ web panel patch (step 5).
 
 ```bash
 # 1. stop sampling
-sudo rm -f /etc/cron.d/hmdm-stats /etc/logrotate.d/hmdm-stats
+sudo rm -f /etc/cron.d/hmdm-stats /etc/cron.d/hmdm-stats-offline-report /etc/logrotate.d/hmdm-stats
 
 # 2. drop the history table and roles (this deletes all collected history!)
 sudo -u postgres psql -d hmdm -c "DROP TABLE IF EXISTS device_status_history;"

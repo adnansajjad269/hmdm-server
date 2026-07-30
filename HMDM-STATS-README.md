@@ -88,25 +88,41 @@ Panels are provisioned read-only from
 
 ## Alerting
 
+Grafana-provisioned rules (`hmdm-fleet` group, `HMDM Stats` folder):
+
 | Rule | Fires when | Severity |
 |---|---|---|
-| Device offline too long | offline > `OFFLINE_ALERT_SECONDS` (1 h) | warning |
 | Battery low (warn tier) | battery < `BATTERY_WARN` (20 %), online, not charging | warning |
 | Battery critical (freeze tier) | battery < `BATTERY_CRIT` (5 %), online, not charging | critical |
-| Snapshot pipeline stale | no new samples for 30 min | critical |
+| Snapshot pipeline stale | no new samples for `ONLINE_THRESHOLD_SECONDS` (30 min) | critical |
 
 Routing: set `ALERT_EMAIL_TO` (plus `SMTP_*`) and/or `ALERT_WEBHOOK_URL` in
 `.env` — the installer provisions a single contact point with whichever
 integrations are configured. Neither set → rules still evaluate but go to
 Grafana's default empty receiver (a warning is printed).
 
+Offline devices are reported separately, by `snapshot/offline_report.py` on its
+own cron schedule (`OFFLINE_REPORT_INTERVAL_HOURS`, default 4h — only installed
+when `ALERT_WEBHOOK_URL` is set) rather than as a Grafana alert rule. Each run
+queries live status fresh and posts a tiered summary (offline >12h / 1-12h /
+<1h, one line per device with a known ITAM owner) straight to the webhook; it
+sends nothing when no device qualifies. This is deliberate: Grafana's rule
+`interval` (how often the query re-runs) and Alertmanager's `repeat_interval`
+(a separate clock that just re-sends the last notification for an unresolved
+alert, without re-querying) drift out of phase when both are set to the same
+interval, so a repeat-interval resend can deliver stale, pre-recovery data
+moments before the next real evaluation would have caught the device coming
+back online. A plain cron job that queries fresh data every run has no such
+state to drift, giving an exact "current status as of right now" heartbeat.
+
 ## Security notes
 
 - Grafana binds to the **LAN address only** and anonymous access is
   Viewer-only, needed for the iframe tab. **Never** add a pfSense port-forward
   for :3000. For off-LAN access, use a VPN (WireGuard/OpenVPN) into the LAN.
-- `grafana_ro` can read only `device_status_history`; `hmdm_stats` can read
-  `devices` and write only the history table. Headwind's tables are otherwise
+- `grafana_ro` can read only `device_status_history`, `devices` and (if
+  present) `plugin_itam_log`; `hmdm_stats` has the same read access plus
+  write-only access to the history table. Headwind's tables are otherwise
   untouched.
 - Secrets live in `.env` (0600, gitignored) and
   `/etc/hmdm-stats/hmdm-stats.conf` (0600).

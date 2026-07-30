@@ -50,6 +50,10 @@ RETENTION_DAYS=${RETENTION_DAYS:-30}
 BATTERY_WARN=${BATTERY_WARN:-20}
 BATTERY_CRIT=${BATTERY_CRIT:-5}
 OFFLINE_ALERT_SECONDS=${OFFLINE_ALERT_SECONDS:-3600}
+OFFLINE_REPORT_INTERVAL_HOURS=${OFFLINE_REPORT_INTERVAL_HOURS:-4}
+case "$OFFLINE_REPORT_INTERVAL_HOURS" in
+    ''|*[!0-9]*) echo "OFFLINE_REPORT_INTERVAL_HOURS must be a number" >&2; exit 1 ;;
+esac
 HMDM_DB_NAME=${HMDM_DB_NAME:-hmdm}
 GRAFANA_BIND_ADDR=${GRAFANA_BIND_ADDR:-10.10.10.12}
 GRAFANA_URL=${GRAFANA_URL:-http://$GRAFANA_BIND_ADDR:3000}
@@ -90,7 +94,8 @@ if [ "$HERE" != "$RUNTIME" ]; then
     cp -a "$HERE/." "$RUNTIME/"
 fi
 chmod 755 "$RUNTIME"/preflight.sh "$RUNTIME"/install.sh \
-          "$RUNTIME"/snapshot/snapshot-cron.sh "$RUNTIME"/webpanel/inject-analytics-tab.sh
+          "$RUNTIME"/snapshot/snapshot-cron.sh "$RUNTIME"/snapshot/offline-report-cron.sh \
+          "$RUNTIME"/webpanel/inject-analytics-tab.sh
 
 # --- 4. /etc/hmdm-stats/hmdm-stats.conf -----------------------------------------------
 say "write $CONF"
@@ -113,6 +118,10 @@ fi
     echo "bucket_seconds = $BUCKET_SECONDS"
     echo "online_threshold_seconds = $ONLINE_THRESHOLD_SECONDS"
     echo "retention_days = $RETENTION_DAYS"
+    if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
+        echo "[offline_report]"
+        echo "webhook_url = $ALERT_WEBHOOK_URL"
+    fi
 } >"$CONF"
 chmod 600 "$CONF"
 [ "$CRON_USER" = "postgres" ] && chown postgres:postgres "$CONF"
@@ -137,13 +146,15 @@ GRANT SELECT ON devices TO hmdm_stats;
 GRANT SELECT, INSERT, DELETE ON device_status_history TO hmdm_stats;
 GRANT SELECT ON device_status_history TO grafana_ro;
 GRANT SELECT ON devices TO grafana_ro;
--- plugin_itam_log (ITAM plugin's own table, for the offline-report rule's owner-name
--- join) only exists once the main webapp has started at least once with that plugin
--- bundled; grant conditionally so a fresh/out-of-order install doesn't fail here.
+-- plugin_itam_log (ITAM plugin's own table, for the offline-report script's owner-name
+-- join, and grafana_ro for the dashboard) only exists once the main webapp has started
+-- at least once with that plugin bundled; grant conditionally so a fresh/out-of-order
+-- install doesn't fail here.
 DO \$\$
 BEGIN
     IF to_regclass('public.plugin_itam_log') IS NOT NULL THEN
         GRANT SELECT ON plugin_itam_log TO grafana_ro;
+        GRANT SELECT ON plugin_itam_log TO hmdm_stats;
     END IF;
 END
 \$\$;
@@ -168,6 +179,16 @@ else
     python3 "$RUNTIME/snapshot/snapshot.py" "$CONF"
 fi
 echo "first snapshot OK"
+
+# Offline-devices report: its own cron job (see snapshot/offline_report.py for why this
+# isn't a Grafana alert rule), only when a webhook is configured to send it to.
+if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
+    sed -e "s/__INTERVAL_HOURS__/$OFFLINE_REPORT_INTERVAL_HOURS/" -e "s/__CRON_USER__/$CRON_USER/" \
+        "$RUNTIME/snapshot/offline-report.cron" >/etc/cron.d/hmdm-stats-offline-report
+    chmod 644 /etc/cron.d/hmdm-stats-offline-report
+else
+    rm -f /etc/cron.d/hmdm-stats-offline-report
+fi
 
 # --- 7. Grafana -------------------------------------------------------------------------------
 say "grafana"
@@ -259,11 +280,6 @@ envsubst '${BATTERY_WARN} ${BATTERY_CRIT} ${ONLINE_THRESHOLD_SECONDS}' \
     >/etc/grafana/provisioning/alerting/hmdm-rules.yaml
 chmod 644 /etc/grafana/provisioning/alerting/hmdm-rules.yaml
 
-# Notification template for the offline-devices report -- installed unconditionally;
-# harmless if unreferenced (only the offline-report-webhook contact point uses it).
-install -m 644 "$RUNTIME/grafana/provisioning/alerting/templates.yaml" \
-    /etc/grafana/provisioning/alerting/hmdm-templates.yaml
-
 # contact points: include only receivers that are configured
 if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
     CP=/etc/grafana/provisioning/alerting/hmdm-contact-points.yaml
@@ -287,48 +303,9 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "          url: \"$ALERT_WEBHOOK_URL\""
             echo "          httpMethod: POST"
         fi
-        # A separate contact point for the offline-devices report (same URL, but with its
-        # own fully custom JSON payload) -- kept distinct from hmdm-alerts so the tiered
-        # report doesn't also apply to battery/pipeline-stale alerts. Uses the generic
-        # "webhook" type with a Custom Payload template, NOT the dedicated "googlechat"
-        # contact point type: googlechat wraps everything in Grafana's own fixed card UI
-        # (title, "Open in Grafana" button, version footer), none of which is controllable.
-        # The custom payload instead sends EXACTLY the JSON our template produces (see
-        # templates.yaml) -- e.g. Google Chat's plain {"text": "..."} shape -- with nothing
-        # added by Grafana. Works for any webhook consumer (Google Chat, Slack, Discord, a
-        # custom endpoint...), not just Chat.
-        # IMPORTANT: the settings field is the nested "payload: { template: ... }" object,
-        # NOT a flat "payloadTemplate" string -- that flat key doesn't exist in Grafana's
-        # webhook schema (github.com/grafana/alerting receivers/webhook/v1/config.go defines
-        # `Payload CustomPayload` with json tag "payload", and CustomPayload's own Template
-        # field has json tag "template"). A flat "payloadTemplate" key is silently ignored,
-        # and Grafana falls back to sending its default full alert JSON body instead --
-        # which is why Google Chat rejected it with "Unknown name \"receiver\"" etc. errors.
-        if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
-            echo "  - orgId: 1"
-            echo "    name: hmdm-offline-report-webhook"
-            echo "    receivers:"
-            echo "      - uid: hmdm-offline-report-webhook"
-            echo "        type: webhook"
-            # A strict "every 4h, silent if nothing offline, no reaction to devices flapping
-            # in between" cadence (see rules.yaml.tmpl's hmdm-fleet-offline-report group,
-            # interval: 4h) requires resolved notifications to be fully suppressed too: without
-            # this, a device coming back online exactly at a 4h evaluation tick would still
-            # produce an unwanted "resolved"/"0 devices offline" notification of its own,
-            # breaking the silent bypass when everything is online.
-            echo "        disableResolveMessage: true"
-            echo "        settings:"
-            echo "          url: \"$ALERT_WEBHOOK_URL\""
-            echo "          httpMethod: POST"
-            echo "          payload:"
-            echo "            template: '{{ template \"hmdm_offline_report\" . }}'"
-        fi
     } >"$CP"
     chmod 640 "$CP"; chown root:grafana "$CP"
 
-    # Notification policy: built inline (not from a static template) because the
-    # offline-report child route can only exist when ALERT_WEBHOOK_URL is configured --
-    # routing to a contact point that doesn't exist would fail Grafana's provisioning.
     NP=/etc/grafana/provisioning/alerting/hmdm-notification-policies.yaml
     {
         echo "apiVersion: 1"
@@ -339,16 +316,6 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
         echo "    group_wait: 30s"
         echo "    group_interval: 5m"
         echo "    repeat_interval: 4h"
-        if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
-            echo "    routes:"
-            echo "      - receiver: hmdm-offline-report-webhook"
-            echo "        matchers:"
-            echo "          - report = offline-summary"
-            echo "        group_by: [\"alertname\"]"
-            echo "        group_wait: 30s"
-            echo "        group_interval: 5m"
-            echo "        repeat_interval: 4h"
-        fi
     } >"$NP"
     chmod 640 "$NP"; chown root:grafana "$NP"
 else
@@ -357,6 +324,10 @@ else
     rm -f /etc/grafana/provisioning/alerting/hmdm-contact-points.yaml \
           /etc/grafana/provisioning/alerting/hmdm-notification-policies.yaml
 fi
+# Cleanup from the retired Grafana-based offline-devices report (now
+# snapshot/offline_report.py on its own cron schedule, see rules.yaml.tmpl) -- stale
+# leftovers from an earlier install would otherwise keep loading on Grafana restart.
+rm -f /etc/grafana/provisioning/alerting/hmdm-templates.yaml
 
 say "start grafana"
 systemctl daemon-reload

@@ -1,0 +1,7 @@
+# hmdm-stats offline devices report — installed by install.sh, do not edit by
+# hand: change OFFLINE_REPORT_INTERVAL_HOURS in /opt/hmdm-stats/.env and re-run
+# install.sh. Runs as its own cron job (not Grafana alerting) so every run
+# queries live status and reports current state, not a resend of stale data.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 */__INTERVAL_HOURS__ * * * __CRON_USER__ /opt/hmdm-stats/snapshot/offline-report-cron.sh
