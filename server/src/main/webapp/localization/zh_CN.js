@@ -950,8 +950,8 @@ document.localization ['zh_CN'] = {
     'breadcrumb.application.versions':"版本",
 		
     'app.name':'Octane MDM',
-    'app.vendor.name':"h-mdm.com",
-    'app.vendor.link':"https://h-mdm.com",
+    'app.vendor.name':"octane.store",
+    'app.vendor.link':"https://octane.store",
     'app.description':"开源码流动设备管理系统",
     'app.title':"${appName} Web面板",
 		

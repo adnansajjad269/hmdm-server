@@ -950,8 +950,8 @@ document.localization ['es_ES'] = {
     'breadcrumb.application.versions': 'Versiones',
 
     'app.name': 'Octane MDM',
-    'app.vendor.name':"h-mdm.com",
-    'app.vendor.link':"https://h-mdm.com",
+    'app.vendor.name':"octane.store",
+    'app.vendor.link':"https://octane.store",
     'app.description': 'es la solucion MDM open-source',
     'app.title': '${appName} Panel Web',
 

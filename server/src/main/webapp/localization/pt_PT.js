@@ -949,8 +949,8 @@ document.localization ['pt_PT'] = {
     'breadcrumb.application.versions': 'Versões',
 
     'app.name': 'Octane MDM',
-    'app.vendor.name':"h-mdm.com",
-    'app.vendor.link':"https://h-mdm.com",
+    'app.vendor.name':"octane.store",
+    'app.vendor.link':"https://octane.store",
     'app.description': 'é o sistema de gerenciamento de dispositivos móveis de código aberto',
     'app.title': 'Painel Web ${appName}',
 

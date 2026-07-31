@@ -949,8 +949,8 @@ document.localization ['tr_TR'] = {
 	'breadcrumb.application.versions': 'Sürümler',
 
 	'app.name': 'Octane MDM',
-	'app.vendor.name':"h-mdm.com",
-	'app.vendor.link':"https://h-mdm.com",
+	'app.vendor.name':"octane.store",
+	'app.vendor.link':"https://octane.store",
 	'app.description': 'açık kaynaklı bir mobil cihaz yönetim sistemidir',
 	'app.title': '${appName} Web Paneli',
 

@@ -950,8 +950,8 @@ document.localization ['ar_AE'] = {
     "breadcrumb.application.versions": 'إصدارات',
 
     "app.name": 'Octane MDM',
-    'app.vendor.name':"h-mdm.com",
-    'app.vendor.link':"https://h-mdm.com",
+    'app.vendor.name':"octane.store",
+    'app.vendor.link':"https://octane.store",
     "app.description": 'هو نظام إدارة الأجهزة المحمولة مفتوح المصدر',
     "app.title": '${appName} لوحة ويب',
 

@@ -983,8 +983,8 @@ document.localization ['vi_VN'] = {
     'breadcrumb.application.versions': 'Phiên bản',
 
     'app.name': 'Octane MDM',
-    'app.vendor.name': "h-mdm.com",
-    'app.vendor.link': "https://h-mdm.com",
+    'app.vendor.name': "octane.store",
+    'app.vendor.link': "https://octane.store",
     'app.description': 'là một hệ thống quản lý thiết bị di động mã nguồn mở',
     'app.title': 'Bảng ${appName} Web',
 

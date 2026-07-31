@@ -950,8 +950,8 @@ document.localization ['ja_JP'] = {
     'breadcrumb.application.versions': 'バージョン',
 
     'app.name': 'Octane MDM',
-    'app.vendor.name':"h-mdm.com",
-    'app.vendor.link':"https://h-mdm.com",
+    'app.vendor.name':"octane.store",
+    'app.vendor.link':"https://octane.store",
     'app.description': 'is the open source mobile device management system',
     'app.title': '${appName} Web パネル',
 
