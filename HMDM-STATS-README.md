@@ -79,8 +79,12 @@ never synced counts as offline.
   onward — time before a device has any data at all isn't counted in either
   the numerator or denominator) that it was online, not charging, and its
   battery had dropped more than 1% versus ~15 minutes earlier. Blank means no
-  samples were recorded for that device in the selected range at all. Colored
-  red/green against the *Min utilization (%)* picker (default 80%).
+  samples were recorded for that device in the selected range at all. Text is
+  colored red/green against the *Min utilization (%)* picker (default 80%) —
+  this comparison runs inside the panel's SQL (like the *Low battery*/*Offline
+  longer than* stat tiles), not via Grafana's own threshold config, since
+  Grafana doesn't re-interpolate dashboard variables inside field threshold
+  values.
 - **Battery over time**: scoped by the multi-select *Device* picker (defaults
   to one device — don't select All with a big fleet). Each device renders as
   yellow while online and charging, green while online and not charging,
