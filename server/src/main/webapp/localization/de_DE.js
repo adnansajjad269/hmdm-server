@@ -949,7 +949,7 @@ document.localization ['de_DE'] = {
     'breadcrumb.config.details': 'Details',
     'breadcrumb.application.versions': 'Versionen',
 
-    'app.name': 'Headwind MDM',
+    'app.name': 'Octane MDM',
     'app.vendor.name':"h-mdm.com",
     'app.vendor.link':"https://h-mdm.com",
     'app.description': 'ist das Open-Source-Managementsystem für mobile Geräte',

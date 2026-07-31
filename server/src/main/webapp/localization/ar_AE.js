@@ -949,7 +949,7 @@ document.localization ['ar_AE'] = {
     'breadcrumb.config.details': 'تفاصيل',
     "breadcrumb.application.versions": 'إصدارات',
 
-    "app.name": 'Headwind MDM',
+    "app.name": 'Octane MDM',
     'app.vendor.name':"h-mdm.com",
     'app.vendor.link':"https://h-mdm.com",
     "app.description": 'هو نظام إدارة الأجهزة المحمولة مفتوح المصدر',

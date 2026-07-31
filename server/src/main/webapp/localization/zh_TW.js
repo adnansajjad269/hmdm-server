@@ -949,7 +949,7 @@ document.localization ['zh_TW'] = {
     'breadcrumb.config.details' : "細節",
     'breadcrumb.application.versions':"版本",
 		
-    'app.name':"Headwind MDM",
+    'app.name':'Octane MDM',
     'app.vendor.name':"h-mdm.com",
     'app.vendor.link':"https://h-mdm.com",
     'app.description':"是開源移動設備管理系統",

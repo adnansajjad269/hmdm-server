@@ -982,7 +982,7 @@ document.localization ['vi_VN'] = {
     'breadcrumb.config.details': 'Chi tiết',
     'breadcrumb.application.versions': 'Phiên bản',
 
-    'app.name': 'Headwind MDM',
+    'app.name': 'Octane MDM',
     'app.vendor.name': "h-mdm.com",
     'app.vendor.link': "https://h-mdm.com",
     'app.description': 'là một hệ thống quản lý thiết bị di động mã nguồn mở',
