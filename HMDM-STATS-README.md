@@ -72,7 +72,12 @@ never synced counts as offline.
 - **Stat tiles**: online now, offline now, battery below a pickable threshold,
   offline longer than a pickable duration.
 - **Needs attention** table: all devices, lowest battery / longest offline
-  first — the operational view at 200 devices.
+  first — the operational view at 200 devices. Most columns show each
+  device's latest snapshot; **Utilization** is the exception — it's computed
+  over the dashboard's selected time range (top-right picker) as the % of
+  that period the device was online, not charging, and its battery had
+  dropped more than 1% versus ~15 minutes earlier. Blank means no samples
+  were recorded for that device in the selected range.
 - **Battery over time**: scoped by the multi-select *Device* picker (defaults
   to one device — don't select All with a big fleet). Each device renders as
   bright green while online and charging, green while online and not charging,
