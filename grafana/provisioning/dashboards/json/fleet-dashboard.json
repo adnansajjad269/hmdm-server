@@ -6,7 +6,7 @@
   "editable": false,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 4,
+  "version": 5,
   "refresh": "5m",
   "time": { "from": "now-24h", "to": "now" },
   "templating": {
@@ -321,8 +321,8 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Battery level over time — bright green = charging, green = online, red = offline",
-      "description": "One series per device per state (bright green = online+charging, green = online+not charging, red = offline). A short gap appears at each state transition; that is expected. Legend hidden — hover a line for its device.",
+      "title": "Battery level over time — yellow = charging, green = online, red = offline",
+      "description": "One series per device per state (yellow = online+charging, green = online+not charging, red = offline). A short gap appears at each state transition; that is expected. Legend hidden — hover a line for its device.",
       "gridPos": { "h": 11, "w": 24, "x": 0, "y": 14 },
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
       "targets": [
@@ -366,7 +366,7 @@
         "overrides": [
           {
             "matcher": { "id": "byRegexp", "options": "/ online-charging$/" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "light-green" } }]
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }]
           },
           {
             "matcher": { "id": "byRegexp", "options": "/ online-notcharging$/" },

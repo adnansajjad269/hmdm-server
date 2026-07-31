@@ -83,7 +83,7 @@ never synced counts as offline.
   red/green against the *Min utilization (%)* picker (default 80%).
 - **Battery over time**: scoped by the multi-select *Device* picker (defaults
   to one device — don't select All with a big fleet). Each device renders as
-  bright green while online and charging, green while online and not charging,
+  yellow while online and charging, green while online and not charging,
   and red while offline. A one-sample gap at each state transition is expected
   (three series per device under the hood). Legend is hidden — hover a line to
   identify its device.
