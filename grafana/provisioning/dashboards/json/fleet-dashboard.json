@@ -6,7 +6,7 @@
   "editable": false,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "refresh": "5m",
   "time": { "from": "now-24h", "to": "now" },
   "templating": {
@@ -56,6 +56,24 @@
         ],
         "multi": false,
         "includeAll": false
+      },
+      {
+        "name": "min_utilization",
+        "label": "Min utilization (%)",
+        "type": "custom",
+        "query": "50,60,70,80,90,100",
+        "current": { "text": "80", "value": "80", "selected": true },
+        "options": [
+          { "text": "50", "value": "50", "selected": false },
+          { "text": "60", "value": "60", "selected": false },
+          { "text": "70", "value": "70", "selected": false },
+          { "text": "80", "value": "80", "selected": true },
+          { "text": "90", "value": "90", "selected": false },
+          { "text": "100", "value": "100", "selected": false }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "description": "Needs attention table: Utilization below this is red, at or above is green."
       }
     ]
   },
@@ -217,7 +235,7 @@
           "refId": "A",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH latest AS (SELECT DISTINCT ON (device_number) device_number, battery_level, charging, online, last_update FROM device_status_history ORDER BY device_number, sampled_at DESC), window_bounds AS (SELECT $__timeFrom()::timestamptz AS range_from, $__timeTo()::timestamptz AS range_to), samples AS (SELECT dsh.device_number, dsh.sampled_at, dsh.battery_level, dsh.charging, dsh.online FROM device_status_history dsh, window_bounds wb WHERE dsh.sampled_at >= wb.range_from AND dsh.sampled_at <= wb.range_to), segments AS (SELECT s.device_number, s.online, s.charging, s.battery_level, s.sampled_at AS seg_start, LEAST(COALESCE(LEAD(s.sampled_at) OVER (PARTITION BY s.device_number ORDER BY s.sampled_at), wb.range_to), wb.range_to) AS seg_end, (SELECT p.battery_level FROM device_status_history p WHERE p.device_number = s.device_number AND p.sampled_at <= s.sampled_at - interval '15 minutes' ORDER BY p.sampled_at DESC LIMIT 1) AS battery_15m_ago FROM samples s, window_bounds wb), scored AS (SELECT device_number, seg_end - seg_start AS duration, (online AND charging IS NULL AND battery_15m_ago IS NOT NULL AND battery_level IS NOT NULL AND (battery_15m_ago - battery_level) > 1) AS is_utilized FROM segments WHERE seg_end > seg_start), utilization AS (SELECT device_number, SUM(duration) FILTER (WHERE is_utilized) AS utilized_duration, COUNT(*) AS sample_count FROM scored GROUP BY device_number) SELECT l.device_number AS \"Device\", l.battery_level AS \"Battery %\", COALESCE(l.charging, 'no') AS \"Charging\", CASE WHEN l.online THEN 'Online' ELSE 'Offline' END AS \"Status\", CASE WHEN l.online THEN 0 ELSE round(extract(epoch FROM (now() - COALESCE(l.last_update, timestamptz 'epoch'))) / 60)::bigint END AS \"Offline (min)\", CASE WHEN u.sample_count IS NULL THEN NULL ELSE round(100.0 * extract(epoch FROM COALESCE(u.utilized_duration, interval '0')) / NULLIF(extract(epoch FROM (wb.range_to - wb.range_from)), 0))::int END AS \"Utilization\", l.last_update AS \"Last update\" FROM latest l LEFT JOIN utilization u ON u.device_number = l.device_number CROSS JOIN window_bounds wb ORDER BY l.battery_level ASC NULLS LAST, 5 DESC"
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (device_number) device_number, battery_level, charging, online, last_update FROM device_status_history ORDER BY device_number, sampled_at DESC), window_bounds AS (SELECT $__timeFrom()::timestamptz AS range_from, $__timeTo()::timestamptz AS range_to), samples AS (SELECT dsh.device_number, dsh.sampled_at, dsh.battery_level, dsh.charging, dsh.online FROM device_status_history dsh, window_bounds wb WHERE dsh.sampled_at >= wb.range_from AND dsh.sampled_at <= wb.range_to), segments AS (SELECT s.device_number, s.online, s.charging, s.battery_level, s.sampled_at AS seg_start, LEAST(COALESCE(LEAD(s.sampled_at) OVER (PARTITION BY s.device_number ORDER BY s.sampled_at), wb.range_to), wb.range_to) AS seg_end, (SELECT p.battery_level FROM device_status_history p WHERE p.device_number = s.device_number AND p.sampled_at <= s.sampled_at - interval '15 minutes' ORDER BY p.sampled_at DESC LIMIT 1) AS battery_15m_ago FROM samples s, window_bounds wb), scored AS (SELECT device_number, seg_end - seg_start AS duration, (online AND charging IS NULL AND battery_15m_ago IS NOT NULL AND battery_level IS NOT NULL AND (battery_15m_ago - battery_level) > 1) AS is_utilized FROM segments WHERE seg_end > seg_start), utilization AS (SELECT device_number, SUM(duration) FILTER (WHERE is_utilized) AS utilized_duration, SUM(duration) AS observed_duration, COUNT(*) AS sample_count FROM scored GROUP BY device_number) SELECT l.device_number AS \"Device\", l.battery_level AS \"Battery %\", COALESCE(l.charging, 'no') AS \"Charging\", CASE WHEN l.online THEN 'Online' ELSE 'Offline' END AS \"Status\", CASE WHEN l.online THEN 0 ELSE round(extract(epoch FROM (now() - COALESCE(l.last_update, timestamptz 'epoch'))) / 60)::bigint END AS \"Offline (min)\", CASE WHEN u.sample_count IS NULL THEN NULL ELSE round(100.0 * extract(epoch FROM COALESCE(u.utilized_duration, interval '0')) / NULLIF(extract(epoch FROM u.observed_duration), 0))::int END AS \"Utilization\", l.last_update AS \"Last update\" FROM latest l LEFT JOIN utilization u ON u.device_number = l.device_number ORDER BY l.battery_level ASC NULLS LAST, 5 DESC"
         }
       ],
       "options": {
@@ -283,7 +301,18 @@
             "properties": [
               { "id": "unit", "value": "percent" },
               { "id": "decimals", "value": 0 },
-              { "id": "custom.cellOptions", "value": { "type": "auto" } }
+              { "id": "max", "value": 100 },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "green", "value": "${min_utilization}" }
+                  ]
+                }
+              }
             ]
           }
         ]

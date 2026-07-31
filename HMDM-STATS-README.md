@@ -75,9 +75,12 @@ never synced counts as offline.
   first — the operational view at 200 devices. Most columns show each
   device's latest snapshot; **Utilization** is the exception — it's computed
   over the dashboard's selected time range (top-right picker) as the % of
-  that period the device was online, not charging, and its battery had
-  dropped more than 1% versus ~15 minutes earlier. Blank means no samples
-  were recorded for that device in the selected range.
+  that device's *observed* time in the range (i.e. from its first sample
+  onward — time before a device has any data at all isn't counted in either
+  the numerator or denominator) that it was online, not charging, and its
+  battery had dropped more than 1% versus ~15 minutes earlier. Blank means no
+  samples were recorded for that device in the selected range at all. Colored
+  red/green against the *Min utilization (%)* picker (default 80%).
 - **Battery over time**: scoped by the multi-select *Device* picker (defaults
   to one device — don't select All with a big fleet). Each device renders as
   bright green while online and charging, green while online and not charging,
