@@ -71,8 +71,9 @@ never synced counts as offline.
 
 - **Stat tiles**: online now, offline now, battery below a pickable threshold,
   offline longer than a pickable duration.
-- **Needs attention** table: all devices, lowest battery / longest offline
-  first — the operational view at 200 devices. Most columns show each
+- **Needs attention** table: lowest battery / longest offline first — the
+  operational view at 200 devices, scoped by the same multi-select *Device*
+  picker as the two panels below. Most columns show each
   device's latest snapshot; **Utilization** is the exception — it's computed
   over the dashboard's selected time range (top-right picker) as the % of
   that device's *observed* time in the range (i.e. from its first sample
