@@ -94,7 +94,7 @@ never synced counts as offline.
   identify its device.
 - **Online/offline timeline**: banded state view, same device picker.
 - Default range: last 7 days; zoom freely.
-- **Group** and **ITAM Team** pickers: filter all three panels above to
+- **Group** and **Team** pickers: filter all three panels above to
   devices in the selected Headwind group(s) (`groups`/`deviceGroups`) and/or
   whose most recent ITAM log entry has the selected team(s)
   (`plugin_itam_log.team`). Both default to *All* (no filtering, including

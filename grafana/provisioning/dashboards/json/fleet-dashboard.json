@@ -6,7 +6,7 @@
   "editable": false,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 9,
+  "version": 10,
   "refresh": "5m",
   "time": { "from": "now-24h", "to": "now" },
   "templating": {
@@ -41,7 +41,7 @@
       },
       {
         "name": "itam_team",
-        "label": "ITAM Team",
+        "label": "Team",
         "type": "query",
         "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
         "query": "SELECT DISTINCT team FROM plugin_itam_log WHERE team IS NOT NULL ORDER BY 1",
