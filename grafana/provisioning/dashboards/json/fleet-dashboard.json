@@ -6,7 +6,7 @@
   "editable": false,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 10,
+  "version": 11,
   "refresh": "5m",
   "time": { "from": "now-24h", "to": "now" },
   "templating": {
@@ -30,28 +30,28 @@
         "label": "Group",
         "type": "query",
         "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
-        "query": "SELECT DISTINCT name FROM groups ORDER BY 1",
+        "query": "SELECT name FROM groups UNION ALL SELECT '(no group)' ORDER BY 1",
         "refresh": 2,
         "multi": true,
         "includeAll": true,
-        "allValue": "__ALL__",
+        "allValue": null,
         "current": {},
         "sort": 1,
-        "description": "Filters all three panels to devices in the selected Headwind group(s). All = no group filtering (devices with no group still shown)."
+        "description": "Filters all three panels to devices in the selected Headwind group(s). All = no group filtering (devices with no group still shown, via the synthetic '(no group)' option)."
       },
       {
         "name": "itam_team",
         "label": "Team",
         "type": "query",
         "datasource": { "type": "grafana-postgresql-datasource", "uid": "hmdm-postgres" },
-        "query": "SELECT DISTINCT team FROM plugin_itam_log WHERE team IS NOT NULL ORDER BY 1",
+        "query": "SELECT DISTINCT team FROM plugin_itam_log WHERE team IS NOT NULL UNION ALL SELECT '(no team)' ORDER BY 1",
         "refresh": 2,
         "multi": true,
         "includeAll": true,
-        "allValue": "__ALL__",
+        "allValue": null,
         "current": {},
         "sort": 1,
-        "description": "Filters all three panels to devices whose most recent ITAM log entry has the selected team(s). All = no team filtering."
+        "description": "Filters all three panels to devices whose most recent ITAM log entry has the selected team(s). All = no team filtering (devices with no ITAM log still shown, via the synthetic '(no team)' option)."
       },
       {
         "name": "offline_hours",
@@ -263,7 +263,7 @@
           "refId": "A",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH group_devices AS (SELECT DISTINCT dd.number AS device_number FROM devices dd JOIN deviceGroups dg ON dg.deviceId = dd.id JOIN groups g ON g.id = dg.groupId WHERE g.name IN (${group:sqlstring})), team_devices AS (SELECT lt.device_number FROM (SELECT DISTINCT ON (d.number) d.number AS device_number, l.team FROM devices d JOIN plugin_itam_log l ON l.deviceid = d.id AND l.deletedat IS NULL ORDER BY d.number, l.createdat DESC) lt WHERE lt.team IN (${itam_team:sqlstring})), latest AS (SELECT DISTINCT ON (device_number) device_number, battery_level, charging, online, last_update FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND ('__ALL__' IN (${group:sqlstring}) OR device_number IN (SELECT device_number FROM group_devices)) AND ('__ALL__' IN (${itam_team:sqlstring}) OR device_number IN (SELECT device_number FROM team_devices)) ORDER BY device_number, sampled_at DESC), window_bounds AS (SELECT $__timeFrom()::timestamptz AS range_from, $__timeTo()::timestamptz AS range_to), samples AS (SELECT dsh.device_number, dsh.sampled_at, dsh.battery_level, dsh.charging, dsh.online FROM device_status_history dsh, window_bounds wb WHERE dsh.device_number IN (${device:sqlstring}) AND ('__ALL__' IN (${group:sqlstring}) OR dsh.device_number IN (SELECT device_number FROM group_devices)) AND ('__ALL__' IN (${itam_team:sqlstring}) OR dsh.device_number IN (SELECT device_number FROM team_devices)) AND dsh.sampled_at >= wb.range_from AND dsh.sampled_at <= wb.range_to), segments AS (SELECT s.device_number, s.online, s.charging, s.battery_level, s.sampled_at AS seg_start, LEAST(COALESCE(LEAD(s.sampled_at) OVER (PARTITION BY s.device_number ORDER BY s.sampled_at), wb.range_to), wb.range_to) AS seg_end, (SELECT p.battery_level FROM device_status_history p WHERE p.device_number = s.device_number AND p.sampled_at <= s.sampled_at - interval '15 minutes' ORDER BY p.sampled_at DESC LIMIT 1) AS battery_15m_ago FROM samples s, window_bounds wb), scored AS (SELECT device_number, seg_end - seg_start AS duration, (online AND charging IS NULL AND battery_15m_ago IS NOT NULL AND battery_level IS NOT NULL AND (battery_15m_ago - battery_level) > 1) AS is_utilized FROM segments WHERE seg_end > seg_start), utilization AS (SELECT device_number, COUNT(*) AS sample_count, round(100.0 * extract(epoch FROM COALESCE(SUM(duration) FILTER (WHERE is_utilized), interval '0')) / NULLIF(extract(epoch FROM SUM(duration)), 0))::int AS pct FROM scored GROUP BY device_number) SELECT l.device_number AS \"Device\", l.battery_level AS \"Battery %\", COALESCE(l.charging, 'no') AS \"Charging\", CASE WHEN l.online THEN 'Online' ELSE 'Offline' END AS \"Status\", CASE WHEN l.online THEN 0 ELSE round(extract(epoch FROM (now() - COALESCE(l.last_update, timestamptz 'epoch'))) / 60)::bigint END AS \"Offline (min)\", CASE WHEN u.sample_count IS NULL THEN NULL WHEN u.pct >= ${min_utilization} THEN 'OK:' || u.pct::text || '%' ELSE 'LOW:' || u.pct::text || '%' END AS \"Utilization\", l.last_update AS \"Last update\" FROM latest l LEFT JOIN utilization u ON u.device_number = l.device_number ORDER BY l.battery_level ASC NULLS LAST, 5 DESC"
+          "rawSql": "WITH group_devices AS (SELECT DISTINCT dd.number AS device_number FROM devices dd LEFT JOIN deviceGroups dg ON dg.deviceId = dd.id LEFT JOIN groups g ON g.id = dg.groupId WHERE COALESCE(g.name, '(no group)') IN (${group:sqlstring})), team_devices AS (SELECT dd.number AS device_number FROM devices dd LEFT JOIN LATERAL (SELECT l.team FROM plugin_itam_log l WHERE l.deviceid = dd.id AND l.deletedat IS NULL ORDER BY l.createdat DESC LIMIT 1) latest_log ON true WHERE COALESCE(latest_log.team, '(no team)') IN (${itam_team:sqlstring})), latest AS (SELECT DISTINCT ON (device_number) device_number, battery_level, charging, online, last_update FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND device_number IN (SELECT device_number FROM group_devices) AND device_number IN (SELECT device_number FROM team_devices) ORDER BY device_number, sampled_at DESC), window_bounds AS (SELECT $__timeFrom()::timestamptz AS range_from, $__timeTo()::timestamptz AS range_to), samples AS (SELECT dsh.device_number, dsh.sampled_at, dsh.battery_level, dsh.charging, dsh.online FROM device_status_history dsh, window_bounds wb WHERE dsh.device_number IN (${device:sqlstring}) AND dsh.device_number IN (SELECT device_number FROM group_devices) AND dsh.device_number IN (SELECT device_number FROM team_devices) AND dsh.sampled_at >= wb.range_from AND dsh.sampled_at <= wb.range_to), segments AS (SELECT s.device_number, s.online, s.charging, s.battery_level, s.sampled_at AS seg_start, LEAST(COALESCE(LEAD(s.sampled_at) OVER (PARTITION BY s.device_number ORDER BY s.sampled_at), wb.range_to), wb.range_to) AS seg_end, (SELECT p.battery_level FROM device_status_history p WHERE p.device_number = s.device_number AND p.sampled_at <= s.sampled_at - interval '15 minutes' ORDER BY p.sampled_at DESC LIMIT 1) AS battery_15m_ago FROM samples s, window_bounds wb), scored AS (SELECT device_number, seg_end - seg_start AS duration, (online AND charging IS NULL AND battery_15m_ago IS NOT NULL AND battery_level IS NOT NULL AND (battery_15m_ago - battery_level) > 1) AS is_utilized FROM segments WHERE seg_end > seg_start), utilization AS (SELECT device_number, COUNT(*) AS sample_count, round(100.0 * extract(epoch FROM COALESCE(SUM(duration) FILTER (WHERE is_utilized), interval '0')) / NULLIF(extract(epoch FROM SUM(duration)), 0))::int AS pct FROM scored GROUP BY device_number) SELECT l.device_number AS \"Device\", l.battery_level AS \"Battery %\", COALESCE(l.charging, 'no') AS \"Charging\", CASE WHEN l.online THEN 'Online' ELSE 'Offline' END AS \"Status\", CASE WHEN l.online THEN 0 ELSE round(extract(epoch FROM (now() - COALESCE(l.last_update, timestamptz 'epoch'))) / 60)::bigint END AS \"Offline (min)\", CASE WHEN u.sample_count IS NULL THEN NULL WHEN u.pct >= ${min_utilization} THEN 'OK:' || u.pct::text || '%' ELSE 'LOW:' || u.pct::text || '%' END AS \"Utilization\", l.last_update AS \"Last update\" FROM latest l LEFT JOIN utilization u ON u.device_number = l.device_number ORDER BY l.battery_level ASC NULLS LAST, 5 DESC"
         }
       ],
       "options": {
@@ -352,7 +352,7 @@
           "refId": "A",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH group_devices AS (SELECT DISTINCT dd.number AS device_number FROM devices dd JOIN deviceGroups dg ON dg.deviceId = dd.id JOIN groups g ON g.id = dg.groupId WHERE g.name IN (${group:sqlstring})), team_devices AS (SELECT lt.device_number FROM (SELECT DISTINCT ON (d.number) d.number AS device_number, l.team FROM devices d JOIN plugin_itam_log l ON l.deviceid = d.id AND l.deletedat IS NULL ORDER BY d.number, l.createdat DESC) lt WHERE lt.team IN (${itam_team:sqlstring})) SELECT sampled_at AS \"time\", device_number || ' online-charging' AS metric, CASE WHEN online AND charging IS NOT NULL THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND ('__ALL__' IN (${group:sqlstring}) OR device_number IN (SELECT device_number FROM group_devices)) AND ('__ALL__' IN (${itam_team:sqlstring}) OR device_number IN (SELECT device_number FROM team_devices)) AND $__timeFilter(sampled_at) UNION ALL SELECT sampled_at AS \"time\", device_number || ' online-notcharging' AS metric, CASE WHEN online AND charging IS NULL THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND ('__ALL__' IN (${group:sqlstring}) OR device_number IN (SELECT device_number FROM group_devices)) AND ('__ALL__' IN (${itam_team:sqlstring}) OR device_number IN (SELECT device_number FROM team_devices)) AND $__timeFilter(sampled_at) UNION ALL SELECT sampled_at AS \"time\", device_number || ' offline' AS metric, CASE WHEN NOT online THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND ('__ALL__' IN (${group:sqlstring}) OR device_number IN (SELECT device_number FROM group_devices)) AND ('__ALL__' IN (${itam_team:sqlstring}) OR device_number IN (SELECT device_number FROM team_devices)) AND $__timeFilter(sampled_at) ORDER BY 1"
+          "rawSql": "WITH group_devices AS (SELECT DISTINCT dd.number AS device_number FROM devices dd LEFT JOIN deviceGroups dg ON dg.deviceId = dd.id LEFT JOIN groups g ON g.id = dg.groupId WHERE COALESCE(g.name, '(no group)') IN (${group:sqlstring})), team_devices AS (SELECT dd.number AS device_number FROM devices dd LEFT JOIN LATERAL (SELECT l.team FROM plugin_itam_log l WHERE l.deviceid = dd.id AND l.deletedat IS NULL ORDER BY l.createdat DESC LIMIT 1) latest_log ON true WHERE COALESCE(latest_log.team, '(no team)') IN (${itam_team:sqlstring})) SELECT sampled_at AS \"time\", device_number || ' online-charging' AS metric, CASE WHEN online AND charging IS NOT NULL THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND device_number IN (SELECT device_number FROM group_devices) AND device_number IN (SELECT device_number FROM team_devices) AND $__timeFilter(sampled_at) UNION ALL SELECT sampled_at AS \"time\", device_number || ' online-notcharging' AS metric, CASE WHEN online AND charging IS NULL THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND device_number IN (SELECT device_number FROM group_devices) AND device_number IN (SELECT device_number FROM team_devices) AND $__timeFilter(sampled_at) UNION ALL SELECT sampled_at AS \"time\", device_number || ' offline' AS metric, CASE WHEN NOT online THEN battery_level END AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND device_number IN (SELECT device_number FROM group_devices) AND device_number IN (SELECT device_number FROM team_devices) AND $__timeFilter(sampled_at) ORDER BY 1"
         }
       ],
       "options": {
@@ -412,7 +412,7 @@
           "refId": "A",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH group_devices AS (SELECT DISTINCT dd.number AS device_number FROM devices dd JOIN deviceGroups dg ON dg.deviceId = dd.id JOIN groups g ON g.id = dg.groupId WHERE g.name IN (${group:sqlstring})), team_devices AS (SELECT lt.device_number FROM (SELECT DISTINCT ON (d.number) d.number AS device_number, l.team FROM devices d JOIN plugin_itam_log l ON l.deviceid = d.id AND l.deletedat IS NULL ORDER BY d.number, l.createdat DESC) lt WHERE lt.team IN (${itam_team:sqlstring})) SELECT sampled_at AS \"time\", device_number AS metric, online::int AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND ('__ALL__' IN (${group:sqlstring}) OR device_number IN (SELECT device_number FROM group_devices)) AND ('__ALL__' IN (${itam_team:sqlstring}) OR device_number IN (SELECT device_number FROM team_devices)) AND $__timeFilter(sampled_at) ORDER BY 1"
+          "rawSql": "WITH group_devices AS (SELECT DISTINCT dd.number AS device_number FROM devices dd LEFT JOIN deviceGroups dg ON dg.deviceId = dd.id LEFT JOIN groups g ON g.id = dg.groupId WHERE COALESCE(g.name, '(no group)') IN (${group:sqlstring})), team_devices AS (SELECT dd.number AS device_number FROM devices dd LEFT JOIN LATERAL (SELECT l.team FROM plugin_itam_log l WHERE l.deviceid = dd.id AND l.deletedat IS NULL ORDER BY l.createdat DESC LIMIT 1) latest_log ON true WHERE COALESCE(latest_log.team, '(no team)') IN (${itam_team:sqlstring})) SELECT sampled_at AS \"time\", device_number AS metric, online::int AS value FROM device_status_history WHERE device_number IN (${device:sqlstring}) AND device_number IN (SELECT device_number FROM group_devices) AND device_number IN (SELECT device_number FROM team_devices) AND $__timeFilter(sampled_at) ORDER BY 1"
         }
       ],
       "options": {

@@ -97,9 +97,12 @@ never synced counts as offline.
 - **Group** and **Team** pickers: filter all three panels above to
   devices in the selected Headwind group(s) (`groups`/`deviceGroups`) and/or
   whose most recent ITAM log entry has the selected team(s)
-  (`plugin_itam_log.team`). Both default to *All* (no filtering, including
-  devices with no group or no ITAM log at all); selecting specific values
-  narrows to devices matching at least one of them, in addition to the
+  (`plugin_itam_log.team`). Each list includes a synthetic "(no group)"/
+  "(no team)" option alongside the real values, so *All* (the default)
+  truly means no filtering — including devices with no group or no ITAM
+  log — and you can also explicitly pick "(no group)"/"(no team)" to see
+  only unassigned devices. Selecting specific values narrows to devices
+  matching at least one of them, in addition to the
   Device picker.
 
 Panels are provisioned read-only from
