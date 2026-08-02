@@ -94,6 +94,13 @@ never synced counts as offline.
   identify its device.
 - **Online/offline timeline**: banded state view, same device picker.
 - Default range: last 7 days; zoom freely.
+- **Group** and **ITAM Team** pickers: filter all three panels above to
+  devices in the selected Headwind group(s) (`groups`/`deviceGroups`) and/or
+  whose most recent ITAM log entry has the selected team(s)
+  (`plugin_itam_log.team`). Both default to *All* (no filtering, including
+  devices with no group or no ITAM log at all); selecting specific values
+  narrows to devices matching at least one of them, in addition to the
+  Device picker.
 
 Panels are provisioned read-only from
 `grafana/provisioning/dashboards/json/fleet-dashboard.json`; edit that file
@@ -133,8 +140,9 @@ state to drift, giving an exact "current status as of right now" heartbeat.
 - Grafana binds to the **LAN address only** and anonymous access is
   Viewer-only, needed for the iframe tab. **Never** add a pfSense port-forward
   for :3000. For off-LAN access, use a VPN (WireGuard/OpenVPN) into the LAN.
-- `grafana_ro` can read only `device_status_history`, `devices` and (if
-  present) `plugin_itam_log`; `hmdm_stats` has the same read access plus
+- `grafana_ro` can read only `device_status_history`, `devices`, `groups`,
+  `deviceGroups` and (if present) `plugin_itam_log`; `hmdm_stats` has the same
+  read access (minus `groups`/`deviceGroups`, unused by the snapshot job) plus
   write-only access to the history table. Headwind's tables are otherwise
   untouched.
 - Secrets live in `.env` (0600, gitignored) and

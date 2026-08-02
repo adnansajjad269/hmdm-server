@@ -146,6 +146,10 @@ GRANT SELECT ON devices TO hmdm_stats;
 GRANT SELECT, INSERT, DELETE ON device_status_history TO hmdm_stats;
 GRANT SELECT ON device_status_history TO grafana_ro;
 GRANT SELECT ON devices TO grafana_ro;
+-- groups/deviceGroups (Headwind's own core tables, always present) for the dashboard's
+-- Group filter variable.
+GRANT SELECT ON groups TO grafana_ro;
+GRANT SELECT ON deviceGroups TO grafana_ro;
 -- plugin_itam_log (ITAM plugin's own table, for the offline-report script's owner-name
 -- join, and grafana_ro for the dashboard) only exists once the main webapp has started
 -- at least once with that plugin bundled; grant conditionally so a fresh/out-of-order
