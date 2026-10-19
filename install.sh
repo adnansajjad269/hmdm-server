@@ -121,6 +121,15 @@ fi
     if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
         echo "[offline_report]"
         echo "webhook_url = $ALERT_WEBHOOK_URL"
+        # Second webhook: devices whose number starts with DEVICE_PREFIX_WEBHOOK_2 get
+        # their own copy of this report, split off from the first; everything else
+        # (including devices matching neither prefix) stays on webhook_url above,
+        # unchanged. Optional -- omitted entirely unless ALERT_WEBHOOK_URL_2 is set, so
+        # existing single-webhook installs are unaffected.
+        if [ -n "${ALERT_WEBHOOK_URL_2:-}" ]; then
+            echo "webhook_url_2 = $ALERT_WEBHOOK_URL_2"
+            echo "device_prefix_2 = ${DEVICE_PREFIX_WEBHOOK_2:-LMWH2}"
+        fi
     fi
 } >"$CONF"
 chmod 600 "$CONF"
@@ -307,6 +316,20 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
             echo "          url: \"$ALERT_WEBHOOK_URL\""
             echo "          httpMethod: POST"
         fi
+        # Second contact point: webhook only (no email) -- a separate contactPoints
+        # entry, not a second receiver in hmdm-alerts above, because routing below
+        # needs to send specific alerts to this webhook EXCLUSIVELY, which requires
+        # its own receiver name. Only emitted when ALERT_WEBHOOK_URL_2 is set.
+        if [ -n "${ALERT_WEBHOOK_URL_2:-}" ]; then
+            echo "  - orgId: 1"
+            echo "    name: hmdm-alerts-webhook-2"
+            echo "    receivers:"
+            echo "      - uid: hmdm-alerts-webhook-2"
+            echo "        type: webhook"
+            echo "        settings:"
+            echo "          url: \"$ALERT_WEBHOOK_URL_2\""
+            echo "          httpMethod: POST"
+        fi
     } >"$CP"
     chmod 640 "$CP"; chown root:grafana "$CP"
 
@@ -320,11 +343,37 @@ if [ -n "${ALERT_EMAIL_TO:-}" ] || [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
         echo "    group_wait: 30s"
         echo "    group_interval: 5m"
         echo "    repeat_interval: 4h"
+        if [ -n "${ALERT_WEBHOOK_URL_2:-}" ]; then
+            PREFIX2="${DEVICE_PREFIX_WEBHOOK_2:-LMWH2}"
+            echo "    routes:"
+            # hmdm-data-stale has no device_number label (it's a fleet-wide pipeline
+            # check, not about one device) -- route it to BOTH webhooks explicitly by
+            # alertname, rather than by device prefix like the two rules below.
+            # continue: true on the first branch lets evaluation fall through to the
+            # second so both receivers actually fire for this one alert.
+            echo "      - receiver: hmdm-alerts"
+            echo "        matchers:"
+            echo "          - alertname = \"Snapshot pipeline stale\""
+            echo "        continue: true"
+            echo "      - receiver: hmdm-alerts-webhook-2"
+            echo "        matchers:"
+            echo "          - alertname = \"Snapshot pipeline stale\""
+            # Per-device battery alerts: only devices matching this prefix move to the
+            # second webhook. Anything else (including devices matching neither
+            # prefix) falls through with no match here and lands on the top-level
+            # receiver (hmdm-alerts) above -- deliberately unchanged from today.
+            echo "      - receiver: hmdm-alerts-webhook-2"
+            echo "        matchers:"
+            echo "          - device_number =~ \"^$PREFIX2\""
+        fi
     } >"$NP"
     chmod 640 "$NP"; chown root:grafana "$NP"
 else
     echo "WARN: neither ALERT_EMAIL_TO nor ALERT_WEBHOOK_URL set — alert rules are" >&2
     echo "      provisioned but route to Grafana's default (empty) receiver." >&2
+    [ -n "${ALERT_WEBHOOK_URL_2:-}" ] && \
+        echo "WARN: ALERT_WEBHOOK_URL_2 is set but ALERT_WEBHOOK_URL is not -- the" \
+             "second webhook needs the first one configured too; ignoring it." >&2
     rm -f /etc/grafana/provisioning/alerting/hmdm-contact-points.yaml \
           /etc/grafana/provisioning/alerting/hmdm-notification-policies.yaml
 fi

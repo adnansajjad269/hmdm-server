@@ -138,6 +138,32 @@ moments before the next real evaluation would have caught the device coming
 back online. A plain cron job that queries fresh data every run has no such
 state to drift, giving an exact "current status as of right now" heartbeat.
 
+### Second webhook, split by device number prefix
+
+Set `ALERT_WEBHOOK_URL_2` (requires `ALERT_WEBHOOK_URL` to be set too) and
+optionally `DEVICE_PREFIX_WEBHOOK_2` (default `LMWH2`) in `.env` to send a
+second copy of the same alerting to a different destination, split by device
+number:
+
+- Devices whose number starts with `DEVICE_PREFIX_WEBHOOK_2` → the second
+  webhook, exclusively.
+- Every other device (any other prefix, including one that matches neither
+  configured prefix) → the original webhook, exactly as before this split
+  existed.
+- `Snapshot pipeline stale` isn't about any one device (it's a fleet-wide
+  pipeline health check), so it has no device number to split by — it's sent
+  to **both** webhooks whenever it fires.
+- Triggers, thresholds, timelines, and formatting are all identical between
+  the two — only the destination differs. This applies to both the
+  Grafana-native battery rules (routed via a `device_number =~ "^<prefix>"`
+  notification-policy matcher — see `grafana/provisioning/alerting/`'s
+  generated `hmdm-notification-policies.yaml`) and the offline-devices report
+  (`snapshot/offline_report.py` splits its device list by the same prefix
+  before formatting/sending, so each webhook gets its own independently
+  tiered report rather than one shared message with everyone in it).
+- Leaving `ALERT_WEBHOOK_URL_2` unset is fully backward compatible: everything
+  stays combined on the single original webhook, unchanged.
+
 ## Security notes
 
 - Grafana binds to the **LAN address only** and anonymous access is

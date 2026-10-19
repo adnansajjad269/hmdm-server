@@ -88,6 +88,12 @@ def load_conf(path):
     return {
         "dsn": cp.get("db", "dsn"),
         "webhook_url": webhook_url,
+        # Second webhook: devices whose number starts with device_prefix_2 get their
+        # own copy of the report, split off from webhook_url above. Both empty when
+        # not configured -- everything then stays combined on webhook_url, unchanged
+        # from before this split existed.
+        "webhook_url_2": cp.get("offline_report", "webhook_url_2", fallback=""),
+        "device_prefix_2": cp.get("offline_report", "device_prefix_2", fallback=""),
     }
 
 
@@ -150,15 +156,33 @@ def main(argv):
         log.info("0 devices offline (with a known owner) — nothing to report")
         return 0
 
-    message = format_message(rows)
-    try:
-        send_webhook(conf["webhook_url"], message)
-    except (urllib.error.URLError, TimeoutError) as exc:
-        log.error("webhook delivery failed: %s", exc)
-        return 3
+    # Split off devices matching device_prefix_2 into their own report/webhook; every
+    # other device (any other prefix, or no second webhook configured at all) stays on
+    # the original report/webhook exactly as before this split existed.
+    prefix2 = conf["device_prefix_2"]
+    if conf["webhook_url_2"] and prefix2:
+        rows_2 = [r for r in rows if r[0].startswith(prefix2)]
+        rows_1 = [r for r in rows if not r[0].startswith(prefix2)]
+    else:
+        rows_2 = []
+        rows_1 = rows
 
-    log.info("sent report: %d devices offline", len(rows))
-    return 0
+    rc = 0
+    for label, webhook_url, group_rows in (
+        ("primary", conf["webhook_url"], rows_1),
+        ("secondary", conf["webhook_url_2"], rows_2),
+    ):
+        if not group_rows:
+            continue
+        try:
+            send_webhook(webhook_url, format_message(group_rows))
+        except (urllib.error.URLError, TimeoutError) as exc:
+            log.error("%s webhook delivery failed: %s", label, exc)
+            rc = 3
+            continue
+        log.info("sent %s report: %d devices offline", label, len(group_rows))
+
+    return rc
 
 
 if __name__ == "__main__":
